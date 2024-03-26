@@ -87,6 +87,46 @@ def get_acquisition_date(c_dicom_header: dict, dicom_type: int, frame_idx: int) 
         return c_dicom_header["AcquisitionDate"]
 
 
+def get_nii_file_suffix(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
+    """
+    Get acquisition date string.
+
+    Parameters
+    ----------
+    c_dicom_header
+    dicom_type
+    frame_idx
+
+    Returns
+    -------
+    Acquisition date
+
+    """
+    if dicom_type == 2:
+        suffix = (
+            c_dicom_header["SeriesDescription"]
+            + "_"
+            + c_dicom_header["SeriesDate"]
+            + str(round((float(c_dicom_header["StudyTime"]))))
+            + "_"
+            + str(c_dicom_header["SeriesNumber"])
+        )
+        suffix = suffix.replace(" ", "_")
+        return suffix
+
+    elif dicom_type == 1:
+        suffix = (
+            c_dicom_header["SeriesDescription"]
+            + "_"
+            + c_dicom_header["SeriesDate"]
+            + str(round((float(c_dicom_header["StudyTime"]))))
+            + "_"
+            + str(c_dicom_header["SeriesNumber"])
+        )
+        suffix = suffix.replace(" ", "_")
+        return suffix
+
+
 def dictify(ds: pydicom.dataset.Dataset) -> dict:
     """
     Turn a pydicom Dataset into a dict with keys derived from the Element tags.
@@ -157,9 +197,12 @@ def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
                     get_acquisition_time(c_dicom_header, dicom_type, frame_idx),
                     # acquisition date
                     get_acquisition_date(c_dicom_header, dicom_type, frame_idx),
+                    # get nii file name suffix
+                    get_nii_file_suffix(c_dicom_header, dicom_type, frame_idx),
                 )
             )
 
+    # create a dataframe from the list
     df = pd.DataFrame(
         df,
         columns=[
@@ -167,19 +210,26 @@ def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
             "nominal_interval",
             "acquisition_time",
             "acquisition_date",
+            "nii_file_suffix",
         ],
     )
 
+    # sort dataframe by acquisition time
+    df = df.sort_values(by=["acquisition_date", "acquisition_time"])
+
     df.to_csv(
-        os.path.join(output_path, "timings.csv"),
+        os.path.join(output_path, "rr_timings.csv"),
         columns=[
             "file_name",
             "nominal_interval",
             "acquisition_time",
             "acquisition_date",
+            "nii_file_suffix",
         ],
         index=False,
     )
+
+    pass
 
 
 if __name__ == "__main__":
