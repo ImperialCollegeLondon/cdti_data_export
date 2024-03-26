@@ -166,7 +166,7 @@ def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
         os.makedirs(output_path)
 
     # run the dcm2niix command
-    run_command = "dcm2niix -o " + output_path + " " + dicom_path
+    run_command = "dcm2niix -v 0 -o " + output_path + " " + dicom_path
     os.system(run_command)
     print("=============================================")
     print("dcm2niix command executed successfully!")
