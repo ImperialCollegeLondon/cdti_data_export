@@ -17,7 +17,7 @@ the diffusion weighted images. Even though this correction is not required for S
 to have the RR-interval information for quality control purposes. So we advise to export the RR-interval information 
 for all protocols.
 
-### Option 1 (Recommended for all and required for STEAM)
+### Option 1 (recommended for all and required for STEAM)
 
 This repository contains a Python script that will:
 - run the appropriate `dcm2niix` command to convert the DICOM files to NIfTI format.
@@ -79,7 +79,7 @@ source .venv/bin/activate
 Then run the following command:
 
 ```bash
-python read_rr_intervals.py <output_folder> <input_folder>
+python cdti_data_export.py <output_folder> <input_folder>
 ```
 
 ### Option 2: Run only the `dcm2niix` command (only for SE): 

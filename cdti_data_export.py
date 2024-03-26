@@ -160,6 +160,18 @@ def dictify(ds: pydicom.dataset.Dataset) -> dict:
 
 
 def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
+
+    # create folder if it does not exist
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
+    # run the dcm2niix command
+    run_command = "dcm2niix -o " + output_path + " " + dicom_path
+    os.system(run_command)
+    print("=============================================")
+    print("dcm2niix command executed successfully!")
+    print("=============================================")
+
     dicom_files = glob.glob(os.path.join(dicom_path, "*.dcm"))
     dicom_files.sort()
 
@@ -202,16 +214,18 @@ def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
                 )
             )
 
+    column_labels = [
+        "file_name",
+        "nominal_interval_(msec)",
+        "acquisition_time",
+        "acquisition_date",
+        "nii_file_suffix",
+    ]
+
     # create a dataframe from the list
     df = pd.DataFrame(
         df,
-        columns=[
-            "file_name",
-            "nominal_interval",
-            "acquisition_time",
-            "acquisition_date",
-            "nii_file_suffix",
-        ],
+        columns=column_labels,
     )
 
     # sort dataframe by acquisition time
@@ -219,13 +233,7 @@ def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
 
     df.to_csv(
         os.path.join(output_path, "rr_timings.csv"),
-        columns=[
-            "file_name",
-            "nominal_interval",
-            "acquisition_time",
-            "acquisition_date",
-            "nii_file_suffix",
-        ],
+        columns=column_labels,
         index=False,
     )
 
@@ -233,6 +241,10 @@ def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
 
 
 if __name__ == "__main__":
+    # arguments from command line
+    # path to where to store nii and other files
     output_path = sys.argv[1]
+    # path to the DICOMs folder
     dicom_path = sys.argv[2]
+    # run main function
     get_data_from_dicoms_and_export(dicom_path, output_path)
