@@ -90,7 +90,7 @@ def get_acquisition_date(c_dicom_header: dict, dicom_type: int, frame_idx: int) 
 
 def get_nii_file_suffix(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
     """
-    Get acquisition date string.
+    Build the suffix nii file name corresponding to the current DICOM image
 
     Parameters
     ----------
@@ -100,7 +100,7 @@ def get_nii_file_suffix(c_dicom_header: dict, dicom_type: int, frame_idx: int) -
 
     Returns
     -------
-    Acquisition date
+    Suffix string
 
     """
     if dicom_type == 2:
@@ -162,7 +162,7 @@ def dictify(ds: pydicom.dataset.Dataset) -> dict:
 
 def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
 
-    # create folder if it does not exist
+    # create output folder if it does not exist
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
@@ -173,13 +173,15 @@ def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
     print("dcm2niix command executed successfully!")
     print("=============================================")
 
+    # list all the DICOM files
     dicom_files = glob.glob(os.path.join(dicom_path, "*.dcm"))
     dicom_files.sort()
 
     # collect some header info from the first DICOM
     ds = pydicom.dcmread(open(dicom_files[0], "rb"))
 
-    # check DICOM header 1:legacy_header, 2:modern-header,
+    # check DICOM header version: 1-legacy_header, 2-modern-header
+    # also check the number of images inside each DICOM image
     dicom_type = 0
     if "PerFrameFunctionalGroupsSequence" in ds:
         dicom_type = 2
@@ -189,16 +191,19 @@ def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
         dicom_type = 1
         n_images_per_file = 1
 
-    # create a dataframe with all DICOM values
+    # create a list with the DICOM header fields
     df = []
+    # loop over each DICOM file
     for idx, file_name in enumerate(dicom_files):
         # read current DICOM
         ds = pydicom.dcmread(open(file_name, "rb"))
-        # loop over the dictionary of header fields and collect them for this DICOM file
+        
+        # convert header into a dict
         c_dicom_header = dictify(ds)
 
-        # loop over each frame within each file
+        # loop over each image in the current DICOM file
         for frame_idx in range(n_images_per_file):
+            
             # append values (will be a row in the dataframe)
             df.append(
                 (
@@ -210,11 +215,12 @@ def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
                     get_acquisition_time(c_dicom_header, dicom_type, frame_idx),
                     # acquisition date
                     get_acquisition_date(c_dicom_header, dicom_type, frame_idx),
-                    # get nii file name suffix
+                    # nii file name suffix
                     get_nii_file_suffix(c_dicom_header, dicom_type, frame_idx),
                 )
             )
 
+    # column labels for the dataframe and for the csv file
     column_labels = [
         "file_name",
         "nominal_interval_(msec)",
@@ -232,13 +238,17 @@ def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
     # sort dataframe by acquisition time
     df = df.sort_values(by=["acquisition_date", "acquisition_time"])
 
+    # save dataframe as a csv file in the output folder
     df.to_csv(
         os.path.join(output_path, "rr_timings.csv"),
         columns=column_labels,
         index=False,
     )
 
-    pass
+    print("=============================================")
+    print("csv file exported successfully!")
+    print("=============================================")
+    
 
 
 if __name__ == "__main__":
