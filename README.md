@@ -1,19 +1,48 @@
 # Exporting anonymised Cardiac Diffusion Tensor data
 
-Collect RR-interval and acquisition time information from STEAM cardiac diffusion scans.
+All cardiac DTI data should be anonymised before being shared with external collaborators. 
+This document describes the steps to anonymise the data and export it to a format that can be shared with collaborators.
 
-The b-value set in the protocol assumes a certain RR-interval which is set at 1sec.
-With the recorded RR-interval information, we can correct the b-value of each diffusion weighted image
-due to RR-interval deviations from the assumed time of 1sec.
+## Introduction
 
-The nominal interval field in the DICOM header is used to calculate the RR-interval. 
-As a fallback option, we can also use the acquisition times.
+Cardiac DTI DICOM data should be converted to NIfTI format without any personal information. 
+[dcm2niix](https://github.com/rordenlab/dcm2niix) is going to be used for this purpose. In addition to the NIfTI files which contain 
+the pixel values and a minimal header with metadata information, this tool also exports the b-values, 
+diffusion directions (in the image plane) and the acquisition parameters in a JSON file.
+
+In addition to the files mentioned above, we should also export the RR-interval 
+information of the all images acquired. This is a requirement for cDTI data acquired with a STEAM sequence, and 
+optional for the Spin-Echo (SE) sequence. The RR-interval information is used to correct the b-values of 
+the diffusion weighted images. Even though this correction is not required for SE data, it is still useful
+to have the RR-interval information for quality control purposes. So we advise to export the RR-interval information 
+for all protocols.
+
+### Option 1 (Recommended for all and required for STEAM)
+
+This repository contains a Python script that will:
+- run the appropriate `dcm2niix` command to convert the DICOM files to NIfTI format.
+- read the RR-interval information from the DICOM files and exports it to a CSV file.
+
+
+### Option 2 (alternative for SE)
+
+Alternatively and for SE data only, the `dcm2niix` command can be run directly to convert the 
+DICOM files to NIfTI format. This option does not require any Python, but we do not export the RR-intervals.
+
+---
 
 ## Installation
 
-We need python installed in the system. This script is known to work with python 3.10.
+### Option 1: Run a Python script (required for STEAM, recommended for SE)
 
-Go to the project folder and create a virtual environment and install the dependencies:
+Install the `dcm2niix` tool. More information on how to install it can be 
+found in [this link](https://github.com/rordenlab/dcm2niix?tab=readme-ov-file#install).
+
+In addition, we need a recent version of Python 3 installed in the system. Check this link for 
+[Python installation instructions](https://realpython.com/installing-python/).
+
+Clone this repository, go to the project folder and create a virtual environment and install the dependencies with
+the following terminal commands:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
@@ -21,27 +50,27 @@ pip install -U pip setuptools wheel pip-tools
 pip install -r requirements.txt
 ```
 
+### Option 2: Run only the `dcm2niix` command (alternative for SE): 
+
+Install the `dcm2niix` tool. More information on how to install it can be 
+found in [this link](https://github.com/rordenlab/dcm2niix?tab=readme-ov-file#install).
+
+---
+
 ## Running
 
-Before running the Python script, please convert the DICOM files to NIfTI format if not yet done.
-- Install [dcm2niix](https://github.com/rordenlab/dcm2niix)
-- Run the code below to convert the DICOM files to NIfTI format.
-
-```bash
-dcm2niix -o <output_folder> <input_folder>
-```
-
-Where:
-- `<output_folder>` is the path to the folder where the nii files will be stored
+Whe need to have the full path for the input and output folders.
 - `<input_folder>` is the path to the folder where the DICOM files are located.
+- `<output_folder>` is the path to the folder where the nii files will be stored.
+
 
 >[!WARNING]
-> Please make sure `<output_folder>` exists before running the `dcm2niix` command.
+> Please make sure `<output_folder>` exists at this stage.
 
-Once the `*.nii` files and associated `*.bvec, *.bval, *.json` files are created, we can run the python script.
+### Option 1: Run a Python script (required for STEAM, recommended for SE)
 
 >[!WARNING]
-> Make sure you are using the python virtual environment created at the project folder:
+> Make sure you are using the python virtual environment created in the repository folder:
 ```bash
 cd <project_folder>
 source .venv/bin/activate
@@ -53,9 +82,19 @@ Then run the following command:
 python read_rr_intervals.py <output_folder> <input_folder>
 ```
 
-Where: `<output_folder>` and `<input_folder>` are the paths used above with the `dcm2niix` command.
+### Option 2: Run only the `dcm2niix` command (only for SE): 
 
-The script will create an `rr_timings.csv` file in the NIfTI data folder similar to this:
+```bash
+dcm2niix -o <output_folder> <input_folder>
+```
+
+---
+### Output
+
+Both **option 1** and **option 2** should create the `*.nii` files and associated `*.bvec, *.bval, *.json` 
+files in the `<output folder>`. 
+In addition, for **option 1** a `rr_timings.csv` file will also be created in the `<output folder>` 
+with content similar to this:
 
 |file_name   |nominal_interval|acquisition_time|acquisition_date|nii_file_suffix                |
 |------------|----------------|----------------|----------------|-------------------------------|
