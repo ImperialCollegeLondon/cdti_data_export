@@ -1,5 +1,6 @@
 """
-Script to acquire nominal interval data from STEAM cDTI DICOMs.
+Script to convert cardiac DTI DICOMs to NIfTI plus extra side files
+Including csv file with the nominal intervals and acquisition times for each image.
 """
 
 import sys
