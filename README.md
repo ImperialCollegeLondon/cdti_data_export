@@ -21,9 +21,6 @@ pip install -U pip setuptools wheel pip-tools
 pip install -r requirements.txt
 ```
 
-
-
-
 ## Running
 
 Before running the Python script, please convert the DICOM files to NIfTI format if not yet done.
@@ -58,15 +55,13 @@ python read_rr_intervals.py <output_folder> <input_folder>
 
 Where: `<output_folder>` and `<input_folder>` are the paths used above with the `dcm2niix` command.
 
-The script will create an `rr_intervals.csv` file in the NIfTI data folder similar to this:
+The script will create an `rr_timings.csv` file in the NIfTI data folder similar to this:
 
-|file_name   |nominal_interval|acquisition_time|acquisition_date| nii_file_suffix    |
-|------------|----------------|----------------|----------------|--------------------|
-|MR_00001.dcm|882             |104517.785      |20240227        | STEAM_protocol_123 |
-|MR_00001.dcm|882             |104518.6675     |20240227        | STEAM_protocol_123 |
-|MR_00026.dcm|922             |104519.59       |20240227        | STEAM_protocol_123 |
-|MR_00026.dcm|1200            |104520.79       |20240227        | STEAM_protocol_123 |
-|MR_00051.dcm|1177            |104521.9675     |20240227        | STEAM_protocol_123 |
-|MR_00051.dcm|1217            |104523.185      |20240227        | STEAM_protocol_123 |
-|MR_00077.dcm|1207            |104524.3925     |20240227        | STEAM_protocol_123 |
-
+|file_name   |nominal_interval|acquisition_time|acquisition_date|nii_file_suffix                |
+|------------|----------------|----------------|----------------|-------------------------------|
+|MR_00002.dcm|1000            |132309.1075     |20240223        |STEAM_standard_20240223131230_7|
+|MR_00013.dcm|1002            |132311.1175     |20240223        |STEAM_standard_20240223131230_7|
+|MR_00022.dcm|1000            |132313.1525     |20240223        |STEAM_standard_20240223131230_7|
+|MR_00034.dcm|1007            |132315.1525     |20240223        |STEAM_standard_20240223131230_7|
+|MR_00046.dcm|997             |132317.1625     |20240223        |STEAM_standard_20240223131230_7|
+...
