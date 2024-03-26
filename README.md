@@ -1,4 +1,4 @@
-# Reading STEAM cDTI RR-interval information
+# Exporting anonymised Cardiac Diffusion Tensor data
 
 Collect RR-interval and acquisition time information from STEAM cardiac diffusion scans.
 
