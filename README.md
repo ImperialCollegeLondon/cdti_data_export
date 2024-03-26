@@ -58,4 +58,15 @@ python read_rr_intervals.py <output_folder> <input_folder>
 
 Where: `<output_folder>` and `<input_folder>` are the paths used above with the `dcm2niix` command.
 
-The script will create an `rr_intervals.csv` file in the NIfTI data folder.
+The script will create an `rr_intervals.csv` file in the NIfTI data folder similar to this:
+
+|file_name   |nominal_interval|acquisition_time|acquisition_date| nii_file_suffix    |
+|------------|----------------|----------------|----------------|--------------------|
+|MR_00001.dcm|882             |104517.785      |20240227        | STEAM_protocol_123 |
+|MR_00001.dcm|882             |104518.6675     |20240227        | STEAM_protocol_123 |
+|MR_00026.dcm|922             |104519.59       |20240227        | STEAM_protocol_123 |
+|MR_00026.dcm|1200            |104520.79       |20240227        | STEAM_protocol_123 |
+|MR_00051.dcm|1177            |104521.9675     |20240227        | STEAM_protocol_123 |
+|MR_00051.dcm|1217            |104523.185      |20240227        | STEAM_protocol_123 |
+|MR_00077.dcm|1207            |104524.3925     |20240227        | STEAM_protocol_123 |
+
