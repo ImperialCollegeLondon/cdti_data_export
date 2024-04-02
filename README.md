@@ -13,6 +13,9 @@ diffusion directions and useful acquisition parameters in a JSON file.
 >[!NOTE]
 > The diffusion directions given by `dcm2niix` are already rotated to the image plane.
 
+>[!WARNING]
+> At the moment we do not support enhanced multi-image DICOMs. 
+
 In addition to the files mentioned above, we should also export the RR-interval information of the all images acquired. This is a requirement for cDTI data acquired with a STEAM sequence, and optional for the Spin-Echo (SE) sequence. The RR-interval information is used to correct the b-values of the diffusion weighted images. Even though this correction is not required for SE data, it is still useful to have the RR-interval information for quality control purposes. So we recommend exporting the RR-interval information for all protocols.
 
 ### Export option 1 (recommended for all and required for STEAM)

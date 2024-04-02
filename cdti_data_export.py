@@ -197,13 +197,13 @@ def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
     for idx, file_name in enumerate(dicom_files):
         # read current DICOM
         ds = pydicom.dcmread(open(file_name, "rb"))
-        
+
         # convert header into a dict
         c_dicom_header = dictify(ds)
 
         # loop over each image in the current DICOM file
         for frame_idx in range(n_images_per_file):
-            
+
             # append values (will be a row in the dataframe)
             df.append(
                 (
@@ -248,7 +248,6 @@ def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
     print("=============================================")
     print("csv file exported successfully!")
     print("=============================================")
-    
 
 
 if __name__ == "__main__":
