@@ -8,6 +8,7 @@ import glob
 import os
 import pydicom
 import pandas as pd
+import numpy as np
 
 
 def get_nominal_interval(
@@ -88,6 +89,28 @@ def get_acquisition_date(c_dicom_header: dict, dicom_type: int, frame_idx: int) 
         return c_dicom_header["AcquisitionDate"]
 
 
+def get_series_number(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
+    """
+    Get series number
+
+    Parameters
+    ----------
+    c_dicom_header
+    dicom_type
+    frame_idx
+
+    Returns
+    -------
+    Suffix string
+
+    """
+    if dicom_type == 2:
+        return c_dicom_header["SeriesNumber"]
+
+    elif dicom_type == 1:
+        return c_dicom_header["SeriesNumber"]
+
+
 def get_nii_file_suffix(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
     """
     Build the suffix nii file name corresponding to the current DICOM image
@@ -160,7 +183,36 @@ def dictify(ds: pydicom.dataset.Dataset) -> dict:
     return output
 
 
-def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
+def add_slice_and_frame_index(df, n_images_per_file, manual_config):
+
+    df["frame_dim_idx"] = 0
+    df["slice_dim_idx"] = 0
+
+    series_in_table = df["series_number"].unique()
+
+    # loop over each series in the df
+    for series in series_in_table:
+        c_table = df[df["series_number"] == series]
+        c_table.loc[:, "frame_dim_idx"] = np.divmod(
+            np.arange(len(c_table)), n_images_per_file
+        )[0]
+
+        slice_values = np.arange(n_images_per_file)
+        if manual_config["slice_order"] == "reverse":
+            slice_values = slice_values[::-1]
+        c_table.loc[:, "slice_dim_idx"] = np.tile(
+            slice_values, len(c_table) // n_images_per_file
+        )
+
+        # df[df["series_number"] == series] = c_table
+        df.loc[df["series_number"] == series, :] = c_table[:]
+
+    return df
+
+
+def get_data_from_dicoms_and_export(
+    dicom_path: str, output_path: str, manual_config: dict
+):
 
     # create output folder if it does not exist
     if not os.path.exists(output_path):
@@ -193,8 +245,10 @@ def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
 
     # create a list with the DICOM header fields
     df = []
+
     # loop over each DICOM file
     for idx, file_name in enumerate(dicom_files):
+
         # read current DICOM
         ds = pydicom.dcmread(open(file_name, "rb"))
 
@@ -215,6 +269,8 @@ def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
                     get_acquisition_time(c_dicom_header, dicom_type, frame_idx),
                     # acquisition date
                     get_acquisition_date(c_dicom_header, dicom_type, frame_idx),
+                    # series number
+                    get_series_number(c_dicom_header, dicom_type, frame_idx),
                     # nii file name suffix
                     get_nii_file_suffix(c_dicom_header, dicom_type, frame_idx),
                 )
@@ -226,6 +282,7 @@ def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
         "nominal_interval_(msec)",
         "acquisition_time",
         "acquisition_date",
+        "series_number",
         "nii_file_suffix",
     ]
 
@@ -238,7 +295,12 @@ def get_data_from_dicoms_and_export(dicom_path: str, output_path: str):
     # sort dataframe by acquisition time
     df = df.sort_values(by=["acquisition_date", "acquisition_time"])
 
+    # add slice and frame index to each row to match the nii arrays
+    df = add_slice_and_frame_index(df, n_images_per_file, manual_config)
+
     # save dataframe as a csv file in the output folder
+    column_labels.append("frame_dim_idx")
+    column_labels.append("slice_dim_idx")
     df.to_csv(
         os.path.join(output_path, "rr_timings.csv"),
         columns=column_labels,
@@ -256,5 +318,12 @@ if __name__ == "__main__":
     output_path = sys.argv[1]
     # path to the DICOMs folder
     dicom_path = sys.argv[2]
+
+    # ==========================================================
+    # Manual configuration of some parameters
+    manual_config = {}
+    # slice order: same, reverse
+    manual_config["slice_order"] = "reverse"
+
     # run main function
-    get_data_from_dicoms_and_export(dicom_path, output_path)
+    get_data_from_dicoms_and_export(dicom_path, output_path, manual_config)
