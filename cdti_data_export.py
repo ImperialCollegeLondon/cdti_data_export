@@ -622,9 +622,7 @@ if __name__ == "__main__":
 
     # ==========================================================
     # Manual configuration of some parameters
-    manual_config = {}
-    manual_config["assumed_rr_interval"] = 1000.0
-    manual_config["calculated_real_b0"] = 30
+    manual_config = {"assumed_rr_interval": 1000.0, "calculated_real_b0": 30}
 
     # run main function
     get_data_from_dicoms_and_export(dicom_path, output_path, manual_config)
