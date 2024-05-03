@@ -380,18 +380,14 @@ def adjust_b_val_and_dir(
     """
     This function will adjust:
     . b-values according to the recorded RR interval
-    . diffusion-directions rotate header directions to the image plane
 
     data: dataframe with diffusion database
-    settings: dict
+    manual_config: dict
     info: dict
-    data: dataframe with diffusion database
-    logger: logger for console and file
-    data_type: str with the type of data (dicom or nii)
 
     Returns
     -------
-    dataframe with adjusted b-values and diffusion directions
+    dataframe with adjusted b-values
     """
 
     n_entries, _ = data.shape
@@ -446,7 +442,7 @@ def adjust_b_val_and_dir(
             c_b_value = calculated_real_b0
 
         # correct b_value relative to the assumed RR interval with the nominal interval if not 0.0.
-        # Otherwise use the estimated RR interval.
+        # otherwise use the estimated RR interval.
         c_nominal_interval = data.loc[idx, "nominal_interval"]
         c_estimated_rr_interval = data.loc[idx, "estimated_rr_interval"]
         if c_nominal_interval != 0.0:
@@ -464,29 +460,21 @@ def adjust_b_val_and_dir(
     return data
 
 
-def get_data_from_dicoms_and_export(
-    dicom_path: str, output_path: str, manual_config: dict
-):
+def check_dicom_version(header_info: pydicom.dataset.Dataset) -> [str, int, str]:
+    """
+    Check the DICOM version and manufacturer
 
-    # create output folder if it does not exist
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    Parameters
+    ----------
+    header_info
 
-    # # run the dcm2niix command
-    # run_command = "dcm2niix -o " + output_path + " " + dicom_path
-    # os.system(run_command)
-    # print("=============================================")
-    # print("dcm2niix command executed successfully!")
-    # print("=============================================")
+    Returns
+    -------
+    dicom_type
+    dicom_manufacturer
 
-    # list all the DICOM files
-    dicom_files = glob.glob(os.path.join(dicom_path, "*.dcm"))
-    dicom_files.sort()
+    """
 
-    # collect some header info from the first DICOM
-    header_info = pydicom.dcmread(open(dicom_files[0], "rb"))
-
-    # check version of dicom
     dicom_type = 0
     if "PerFrameFunctionalGroupsSequence" in header_info:
         dicom_type = 2
@@ -519,6 +507,60 @@ def get_data_from_dicoms_and_export(
     else:
         print("Manufacturer: None")
         sys.exit("Manufacturer not supported.")
+
+    return dicom_type, n_images_per_file, dicom_manufacturer
+
+
+def export_csv_files(df, output_path):
+
+    column_labels = [
+        "b_value",
+        "frame_dim_idx",
+        "slice_dim_idx",
+        "nominal_interval",
+        "acquisition_date_time",
+    ]
+
+    series_in_table = df["series_number"].unique()
+
+    for series in series_in_table:
+        c_table = df[df["series_number"] == series]
+        c_nii_file_suffix = c_table["nii_file_suffix"].unique()[0]
+        c_file = glob.glob(os.path.join(output_path, "**" + c_nii_file_suffix + ".nii"))
+        assert len(c_file) == 1, "More than one file found for this series!"
+        c_file = c_file[0]
+        c_file = c_file.replace(".nii", ".csv")
+        c_table.to_csv(
+            c_file,
+            columns=column_labels,
+            index=False,
+        )
+
+
+def get_data_from_dicoms_and_export(
+    dicom_path: str, output_path: str, manual_config: dict
+):
+
+    # create output folder if it does not exist
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
+    # run the dcm2niix command
+    run_command = "dcm2niix -o " + output_path + " " + dicom_path
+    os.system(run_command)
+    print("=============================================")
+    print("dcm2niix command executed successfully!")
+    print("=============================================")
+
+    # list all the DICOM files
+    dicom_files = glob.glob(os.path.join(dicom_path, "*.dcm"))
+    dicom_files.sort()
+
+    # collect some header info from the first DICOM
+    header_info = pydicom.dcmread(open(dicom_files[0], "rb"))
+
+    # check version and manufacturer
+    dicom_type, n_images_per_file, dicom_manufacturer = check_dicom_version(header_info)
 
     # dictify dicom header
     header_info = dictify(header_info)
@@ -587,26 +629,12 @@ def get_data_from_dicoms_and_export(
     # add slice and frame index to each row to match the nii arrays
     df = add_slice_and_frame_index(df, n_images_per_file, manual_config)
 
-    # =========================================================
     # adjust b-values
-    # =========================================================
     data = adjust_b_val_and_dir(df, manual_config, header_info)
 
-    # create a csv file with the adjusted b-values, the frame index and slice index
-    column_labels = ["b_value", "frame_dim_idx", "slice_dim_idx"]
-    series_in_table = df["series_number"].unique()
-    for series in series_in_table:
-        c_table = df[df["series_number"] == series]
-        c_nii_file_suffix = c_table["nii_file_suffix"].unique()[0]
-        c_file = glob.glob(os.path.join(output_path, "**" + c_nii_file_suffix + ".nii"))
-        assert len(c_file) == 1
-        c_file = c_file[0]
-        c_file = c_file.replace(".nii", ".csv")
-        c_table.to_csv(
-            c_file,
-            columns=column_labels,
-            index=False,
-        )
+    # create a csv file with the adjusted b-values,
+    # the frame index and slice index for each nii file
+    export_csv_files(df, output_path)
 
     print("=============================================")
     print("csv file(s) exported successfully!")
