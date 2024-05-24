@@ -75,7 +75,7 @@ source .venv/bin/activate
 Then run the following command:
 
 ```bash
-python cdti_data_export.py <output_folder> <input_folder>
+python cdti_data_export.py <input_folder> <output_folder> 
 ```
 
 ### Option 2: Run only the `dcm2niix` command (only for SE)
