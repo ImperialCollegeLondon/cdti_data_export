@@ -884,6 +884,10 @@ def read_philips_steam_log(df_dicom: pd.DataFrame, dicom_path: str) -> pd.DataFr
 
     # ===========================================================
     # TODO this needs to be removed once fixed by C Stoeck
+    print("===========================================================")
+    print("Hard coded values for the log file!")
+    print("Remove once fixed!")
+    print("===========================================================")
     df_dicom["series_date"] = "20240606"
     # ===========================================================
 
