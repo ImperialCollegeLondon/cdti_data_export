@@ -664,7 +664,7 @@ def adjust_philips_b_values(b0_val, df_dicom, df_mt):
         c_bval = c_bval * (c_mixing_time / c_assumed_RR)
         df_dicom.at[idx, "b_value"] = c_bval.astype(float)
 
-        return df_dicom
+    return df_dicom
 
 
 def separate_philips_log_table(df_dicom, df_log):
