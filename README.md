@@ -69,6 +69,8 @@ source .venv/bin/activate
 pip install -U pip setuptools wheel pip-tools
 pip install -r requirements.txt
 ```
+>[!NOTE]
+> Note: you may need to specify `python3` instead of `python` command for some systems.
 
 ---
 
