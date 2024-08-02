@@ -33,6 +33,8 @@ This tool exports:
 
 >[!WARNING]
 > At the moment we do not support enhanced multi-image DICOMs.
+>
+> Philips data support is currently in beta. Please report any issues.
 
 ---
 
@@ -51,17 +53,22 @@ A recent version of Python 3 is needed. This script was developed on Python 3.10
 
 Check this link for [Python installation instructions](https://realpython.com/installing-python/) if you don't have Python 3 installed in your system.
 
-Clone or download this repository, go to the repository folder and create a virtual environment
-and install the dependencies. If you have `git` you can use the following terminal commands:
+### Steps
 
-**Get the repository:**
+1) Clone or download this repository.
+2) Go to the repository folder and create a virtual environment
+and install the dependencies.
+
+If you have `git` you can use the following terminal commands:
+
+**1 Get the repository:**
 
 ```bash
 git clone https://github.com/ImperialCollegeLondon/cdti_data_export.git
 cd cdti_data_export
 ```
 
-**Create the virtual environment and install the dependencies:**
+**2 Create the virtual environment and install the dependencies:**
 
 ```bash
 python -m venv .venv
@@ -69,6 +76,7 @@ source .venv/bin/activate
 pip install -U pip setuptools wheel pip-tools
 pip install -r requirements.txt
 ```
+
 >[!NOTE]
 > Note: you may need to specify `python3` instead of `python` command for some systems.
 
@@ -93,7 +101,7 @@ source .venv/bin/activate
 >[!NOTE]
 > For Philips STEAM data, the scan log file should also be in the `<input_folder>`.
 
-Finally run the following command:
+Finally run the following command in the terminal:
 
 ```bash
 # for SE data
