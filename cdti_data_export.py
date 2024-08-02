@@ -941,13 +941,13 @@ def get_data_from_dicoms_and_export(
             os.remove(f)
 
     # run the dcm2niix command
-    run_command = "dcm2niix -ba y -f %f_%p_%s -o " + output_path + " " + dicom_path
+    run_command = "dcm2niix -ba y -f %p_%s -o " + output_path + " " + dicom_path
     os.system(run_command)
     print("=============================================")
     print("dcm2niix command done.")
     print("=============================================")
 
-    # we need to remove the acquisition date and time info from the json files
+    # remove the acquisition date and time info from the json files
     json_files = glob.glob(os.path.join(output_path, "*.json"))
     for json_file in json_files:
         # json file to dict
@@ -970,12 +970,12 @@ def get_data_from_dicoms_and_export(
     print("json files cleaned.")
     print("=============================================")
 
-    # I also need to remove the "descrip" header field from the nifti files
+    # Remove the "descrip" header field from the nifti files
     # it may contain acquisition time.
     nii_files = glob.glob(os.path.join(output_path, "*.nii"))
     for nii_file in nii_files:
         img = nib.load(nii_file)
-        nii_hdr = img.header
+        nii_hdr = img.header.copy()
         if "descrip" in nii_hdr:
             nii_hdr["descrip"] = "removed"
         new_img = nib.Nifti1Image(img.get_fdata(), img.affine, nii_hdr)
@@ -1022,6 +1022,22 @@ def get_data_from_dicoms_and_export(
         print("=============================================")
         print("csv file(s) exported successfully!")
         print("=============================================")
+
+    # rename all files to avoid potential identifiers
+    def custom_file_rename(list_of_files, output_path):
+        list_of_files.sort()
+        for idx, file in enumerate(list_of_files):
+            c_file = os.path.basename(file)
+
+            filename, file_extension = os.path.splitext(c_file)
+            new_name = "cdti_data_" + str(idx + 1).zfill(3) + file_extension
+            os.rename(file, os.path.join(output_path, new_name))
+
+    # nii files
+    nii_files = glob.glob(os.path.join(output_path, "*.nii"))
+    custom_file_rename(nii_files, output_path)
+
+    pass
 
 
 if __name__ == "__main__":
