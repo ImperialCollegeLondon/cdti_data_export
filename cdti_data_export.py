@@ -10,7 +10,8 @@ import pydicom
 import pandas as pd
 import numpy as np
 from typing import Tuple
-from numpy.typing import NDArray
+
+# from numpy.typing import NDArray
 import re
 import json
 import nibabel as nib
@@ -1036,8 +1037,28 @@ def get_data_from_dicoms_and_export(
     # nii files
     nii_files = glob.glob(os.path.join(output_path, "*.nii"))
     custom_file_rename(nii_files, output_path)
-
+    # json files
+    json_files = glob.glob(os.path.join(output_path, "*.json"))
+    custom_file_rename(json_files, output_path)
+    # bval and bvec files
+    bval_files = glob.glob(os.path.join(output_path, "*.bval"))
+    custom_file_rename(bval_files, output_path)
+    bvec_files = glob.glob(os.path.join(output_path, "*.bvec"))
+    custom_file_rename(bvec_files, output_path)
     pass
+
+    print("=============================================")
+    print("nii, json, bval, bvec file(s) renamed successfully!")
+    print("=============================================")
+
+    if steam_sequence_option:
+        # csv files
+        csv_files = glob.glob(os.path.join(output_path, "*.csv"))
+        custom_file_rename(csv_files, output_path)
+
+        print("=============================================")
+        print("csv file(s) renamed successfully!")
+        print("=============================================")
 
 
 if __name__ == "__main__":
