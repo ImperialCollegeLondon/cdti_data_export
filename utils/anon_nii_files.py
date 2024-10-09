@@ -920,179 +920,113 @@ def get_data_from_dicoms_and_export(
     dicom_path: str,
     output_path: str,
     sequence_option: str,
-    anonymise_option: str,
-    manual_config: dict,
 ):
     """
-    # main function. This function will convert DICOMs to NIfTIs and
-    # if steam data also create csv tables with the adjusted b-values
+    # main function. This function will anonymise the NIfTI files in a
+    # new folder
 
     Parameters
     ----------
     dicom_path: str path to dicom files
     output_path: str path to output folder for nifti files
     sequence_option: "se" or "steam"
-    anonymise_option: "yes" or "no"
-    manual_config: dict with manual configuration of some parameters
 
     """
 
     # create output folder if it does not exist
     if not os.path.exists(output_path):
         os.makedirs(output_path)
-    # # if it exists, clear previous files
-    # else:
-    #     files = glob.glob(os.path.join(output_path, "*"))
-    #     for f in files:
-    #         os.remove(f)
 
-    # run the dcm2niix command
-    run_command = "dcm2niix -ba y -f %p_%s -o " + output_path + " " + dicom_path
-    os.system(run_command)
+    # remove the acquisition date and time info from the json files
+    json_files = glob.glob(os.path.join(output_path, "*.json"))
+    for json_file in json_files:
+        # json file to dict
+        json_data = open(json_file)
+        json_data = json_data.read()
+        json_data = json.loads(json_data)
+
+        # remove acquisition date and time
+        if "AcquisitionDate" in json_data:
+            json_data.pop("AcquisitionDate")
+        if "AcquisitionTime" in json_data:
+            json_data.pop("AcquisitionTime")
+
+        # dict to json file
+        json_string = json.dumps(json_data, indent=4)
+        with open(json_file, "w") as f:
+            f.write(json_string)
+
     print("=============================================")
-    print("dcm2niix command done.")
+    print("json files cleaned.")
     print("=============================================")
 
-    # create bool option for anonymisation
-    if anonymise_option == "yes":
-        anonymise_option = True
-    else:
-        anonymise_option = False
+    # Remove the "descrip" header field from the nifti files
+    # it may contain acquisition time.
+    nii_files = glob.glob(os.path.join(output_path, "*.nii"))
+    for nii_file in nii_files:
+        img = nib.load(nii_file)
+        nii_hdr = img.header.copy()
+        if "descrip" in nii_hdr:
+            nii_hdr["descrip"] = "removed"
+        new_img = nib.Nifti1Image(img.get_fdata(), img.affine, nii_hdr)
+        nib.save(new_img, nii_file)
 
-    if anonymise_option:
-        # remove the acquisition date and time info from the json files
-        json_files = glob.glob(os.path.join(output_path, "*.json"))
-        for json_file in json_files:
-            # json file to dict
-            json_data = open(json_file)
-            json_data = json_data.read()
-            json_data = json.loads(json_data)
+    print("=============================================")
+    print("nii files cleaned.")
+    print("=============================================")
 
-            # remove acquisition date and time
-            if "AcquisitionDate" in json_data:
-                json_data.pop("AcquisitionDate")
-            if "AcquisitionTime" in json_data:
-                json_data.pop("AcquisitionTime")
+    # rename all files to avoid potential identifiers
+    def custom_file_rename(list_of_files, output_path):
+        list_of_files.sort()
+        for idx, file in enumerate(list_of_files):
+            c_file = os.path.basename(file)
 
-            # dict to json file
-            json_string = json.dumps(json_data, indent=4)
-            with open(json_file, "w") as f:
-                f.write(json_string)
+            filename, file_extension = os.path.splitext(c_file)
+            new_name = "cdti_sig_data_" + str(idx + 1).zfill(3) + file_extension
+            os.rename(file, os.path.join(output_path, new_name))
 
-        print("=============================================")
-        print("json files cleaned.")
-        print("=============================================")
+    # nii files
+    nii_files = glob.glob(os.path.join(output_path, "*.nii"))
+    custom_file_rename(nii_files, output_path)
+    # json files
+    json_files = glob.glob(os.path.join(output_path, "*.json"))
+    custom_file_rename(json_files, output_path)
+    # bval and bvec files
+    bval_files = glob.glob(os.path.join(output_path, "*.bval"))
+    custom_file_rename(bval_files, output_path)
+    bvec_files = glob.glob(os.path.join(output_path, "*.bvec"))
+    custom_file_rename(bvec_files, output_path)
 
-        # Remove the "descrip" header field from the nifti files
-        # it may contain acquisition time.
-        nii_files = glob.glob(os.path.join(output_path, "*.nii"))
-        for nii_file in nii_files:
-            img = nib.load(nii_file)
-            nii_hdr = img.header.copy()
-            if "descrip" in nii_hdr:
-                nii_hdr["descrip"] = "removed"
-            new_img = nib.Nifti1Image(img.get_fdata(), img.affine, nii_hdr)
-            nib.save(new_img, nii_file)
+    print("=============================================")
+    print("nii, json, bval, bvec file(s) renamed successfully!")
+    print("=============================================")
 
-        print("=============================================")
-        print("nii files cleaned.")
-        print("=============================================")
-
-    # if STEAM sequence, create csv tables with the adjusted b-values
     if sequence_option == "steam":
-
-        # list all the DICOM files
-        dicom_files = glob.glob(os.path.join(dicom_path, "*.dcm"))
-        dicom_files.sort()
-
-        assert len(dicom_files) > 0, "No DICOM files found in the folder!"
-
-        # collect header info from the first DICOM
-        header_info = pydicom.dcmread(open(dicom_files[0], "rb"))
-
-        # check version, number of images per DICOM and manufacturer
-        dicom_type, n_images_per_file, dicom_manufacturer = check_dicom_version(
-            header_info
-        )
-
-        # dictify dicom header
-        header_info = dictify(header_info)
-
-        # dataframe with DICOM info
-        df_dicom = dicom_info_table(
-            dicom_files, dicom_manufacturer, dicom_type, n_images_per_file
-        )
-
-        if dicom_manufacturer == "siemens":
-            siemens_export_csv_tables(
-                df_dicom, header_info, manual_config, n_images_per_file, output_path
-            )
-        elif dicom_manufacturer == "philips":
-            philips_export_csv_tables(
-                df_dicom, dicom_path, n_images_per_file, output_path
-            )
+        # csv files
+        csv_files = glob.glob(os.path.join(output_path, "*.csv"))
+        custom_file_rename(csv_files, output_path)
 
         print("=============================================")
-        print("csv file(s) exported successfully!")
+        print("csv file(s) renamed successfully!")
         print("=============================================")
-
-    if anonymise_option:
-        # rename all files to avoid potential identifiers
-        def custom_file_rename(list_of_files, output_path):
-            list_of_files.sort()
-            for idx, file in enumerate(list_of_files):
-                c_file = os.path.basename(file)
-
-                filename, file_extension = os.path.splitext(c_file)
-                new_name = "cdti_sig_data_" + str(idx + 1).zfill(3) + file_extension
-                os.rename(file, os.path.join(output_path, new_name))
-
-        # nii files
-        nii_files = glob.glob(os.path.join(output_path, "*.nii"))
-        custom_file_rename(nii_files, output_path)
-        # json files
-        json_files = glob.glob(os.path.join(output_path, "*.json"))
-        custom_file_rename(json_files, output_path)
-        # bval and bvec files
-        bval_files = glob.glob(os.path.join(output_path, "*.bval"))
-        custom_file_rename(bval_files, output_path)
-        bvec_files = glob.glob(os.path.join(output_path, "*.bvec"))
-        custom_file_rename(bvec_files, output_path)
-
-        print("=============================================")
-        print("nii, json, bval, bvec file(s) renamed successfully!")
-        print("=============================================")
-
-        if sequence_option == "steam":
-            # csv files
-            csv_files = glob.glob(os.path.join(output_path, "*.csv"))
-            custom_file_rename(csv_files, output_path)
-
-            print("=============================================")
-            print("csv file(s) renamed successfully!")
-            print("=============================================")
 
 
 if __name__ == "__main__":
     # arguments from command line
 
     # check if the number of arguments is correct
-    assert len(sys.argv) == 5, "Incorrect number of arguments!"
+    assert len(sys.argv) == 4, "Incorrect number of arguments!"
 
-    # path to where to store nii and other files
+    # path to original non anonymised nii files
     output_path = sys.argv[2]
-    # path to the DICOMs folder
+    # path to original non anonymised nii files
     dicom_path = sys.argv[1]
     # sequence option
     sequence_option = sys.argv[3]
-    # anonymise option
-    anonymise_option = sys.argv[4]
 
     # checks of the input arguments
     assert os.path.exists(dicom_path), "DICOM path does not exist!"
-    # assert not os.path.exists(output_path), "Output path already exists!"
     assert sequence_option in ["se", "steam"], "Sequence option not recognised!"
-    assert anonymise_option in ["yes", "no"], "Anonymise option not recognised!"
     # check output argument folder doesn't exist or is empty
     if os.path.exists(output_path):
         assert len(os.listdir(output_path)) == 0, "Output folder is not empty!"
@@ -1102,19 +1036,11 @@ if __name__ == "__main__":
     print("DICOM path: " + dicom_path)
     print("Output path: " + output_path)
     print("Sequence option: " + sequence_option)
-    print("Anonymise option: " + anonymise_option)
     print("=============================================")
-
-    # ==========================================================
-    # Manual configuration of some parameters
-    # if everything else fails, we can use these values
-    manual_config = {"assumed_rr_interval": 1000.0, "calculated_real_b0": 30}
 
     # run main function
     get_data_from_dicoms_and_export(
         dicom_path,
         output_path,
         sequence_option,
-        anonymise_option,
-        manual_config,
     )
