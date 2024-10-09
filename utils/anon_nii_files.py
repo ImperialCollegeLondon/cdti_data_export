@@ -6,6 +6,7 @@ Including csv file with the nominal intervals and acquisition times for each ima
 import sys
 import glob
 import os
+import shutil
 import pydicom
 import pandas as pd
 import numpy as np
@@ -936,6 +937,20 @@ def get_data_from_dicoms_and_export(
     # create output folder if it does not exist
     if not os.path.exists(output_path):
         os.makedirs(output_path)
+
+    # copy files to output folder
+    nii_files = glob.glob(os.path.join(dicom_path, "*.nii"))
+    for nii_file in nii_files:
+        shutil.copy(nii_file, output_path)
+    bval_files = glob.glob(os.path.join(dicom_path, "*.bval"))
+    for bval_file in bval_files:
+        shutil.copy(bval_file, output_path)
+    bvec_files = glob.glob(os.path.join(dicom_path, "*.bvec"))
+    for bvec_file in bvec_files:
+        shutil.copy(bvec_file, output_path)
+    json_files = glob.glob(os.path.join(dicom_path, "*.json"))
+    for json_file in json_files:
+        shutil.copy(json_file, output_path)
 
     # remove the acquisition date and time info from the json files
     json_files = glob.glob(os.path.join(output_path, "*.json"))
