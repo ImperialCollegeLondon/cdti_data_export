@@ -6,6 +6,7 @@ Including csv file with the nominal intervals and acquisition times for each ima
 import sys
 import glob
 import os
+import shutil
 import pydicom
 import pandas as pd
 import numpy as np
@@ -24,296 +25,296 @@ def is_unique(s):
     return (a[0] == a).all()
 
 
-def get_nominal_interval(
-    c_dicom_header: dict, dicom_type: int, frame_idx: int
-) -> float:
-    """
-    Get the nominal interval from the DICOM header
-
-    Parameters
-    ----------
-    c_dicom_header
-    dicom_type
-    frame_idx
-
-    Returns
-    -------
-    Nominal interval
-
-    """
-    if dicom_type == 2:
-        val = float(
-            c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
-                "CardiacSynchronizationSequence"
-            ][0]["RRIntervalTimeNominal"]
-        )
-        return val
-
-    elif dicom_type == 1:
-        if "NominalInterval" in c_dicom_header:
-            val = float(c_dicom_header["NominalInterval"])
-        else:
-            val = "None"
-        return val
-
-
-def get_acquisition_time(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
-    """
-    Get acquisition time string
-
-    Parameters
-    ----------
-    c_dicom_header
-    dicom_type
-    frame_idx
-
-    Returns
-    -------
-    Acquisition time
-
-    """
-    if dicom_type == 2:
-        return c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
-            "FrameContentSequence"
-        ][0]["FrameAcquisitionDateTime"][8:]
-
-    elif dicom_type == 1:
-        return c_dicom_header["AcquisitionTime"]
+# def get_nominal_interval(
+#     c_dicom_header: dict, dicom_type: int, frame_idx: int
+# ) -> float:
+#     """
+#     Get the nominal interval from the DICOM header
+#
+#     Parameters
+#     ----------
+#     c_dicom_header
+#     dicom_type
+#     frame_idx
+#
+#     Returns
+#     -------
+#     Nominal interval
+#
+#     """
+#     if dicom_type == 2:
+#         val = float(
+#             c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
+#                 "CardiacSynchronizationSequence"
+#             ][0]["RRIntervalTimeNominal"]
+#         )
+#         return val
+#
+#     elif dicom_type == 1:
+#         if "NominalInterval" in c_dicom_header:
+#             val = float(c_dicom_header["NominalInterval"])
+#         else:
+#             val = "None"
+#         return val
 
 
-def get_acquisition_date(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
-    """
-    Get acquisition date string.
-
-    Parameters
-    ----------
-    c_dicom_header
-    dicom_type
-    frame_idx
-
-    Returns
-    -------
-    Acquisition date
-
-    """
-    if dicom_type == 2:
-        return c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
-            "FrameContentSequence"
-        ][0]["FrameAcquisitionDateTime"][:8]
-
-    elif dicom_type == 1:
-        return c_dicom_header["AcquisitionDate"]
-
-
-def get_series_time(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
-    """
-    Get series time string
-
-    Parameters
-    ----------
-    c_dicom_header
-    dicom_type
-    frame_idx
-
-    Returns
-    -------
-    Series time
-
-    """
-    if dicom_type == 1:
-        return c_dicom_header["SeriesTime"]
-    else:
-        return c_dicom_header["SeriesTime"]
+# def get_acquisition_time(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
+#     """
+#     Get acquisition time string
+#
+#     Parameters
+#     ----------
+#     c_dicom_header
+#     dicom_type
+#     frame_idx
+#
+#     Returns
+#     -------
+#     Acquisition time
+#
+#     """
+#     if dicom_type == 2:
+#         return c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
+#             "FrameContentSequence"
+#         ][0]["FrameAcquisitionDateTime"][8:]
+#
+#     elif dicom_type == 1:
+#         return c_dicom_header["AcquisitionTime"]
 
 
-def get_series_date(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
-    """
-    Get series date string.
-
-    Parameters
-    ----------
-    c_dicom_header
-    dicom_type
-    frame_idx
-
-    Returns
-    -------
-    Series date
-
-    """
-    if dicom_type == 1:
-        return c_dicom_header["SeriesDate"]
-    else:
-        return c_dicom_header["SeriesDate"]
-
-
-def get_series_number(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
-    """
-    Get series number
-
-    Parameters
-    ----------
-    c_dicom_header
-    dicom_type
-    frame_idx
-
-    Returns
-    -------
-    Suffix string
-
-    """
-    if dicom_type == 2:
-        return c_dicom_header["SeriesNumber"]
-
-    elif dicom_type == 1:
-        return c_dicom_header["SeriesNumber"]
+# def get_acquisition_date(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
+#     """
+#     Get acquisition date string.
+#
+#     Parameters
+#     ----------
+#     c_dicom_header
+#     dicom_type
+#     frame_idx
+#
+#     Returns
+#     -------
+#     Acquisition date
+#
+#     """
+#     if dicom_type == 2:
+#         return c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
+#             "FrameContentSequence"
+#         ][0]["FrameAcquisitionDateTime"][:8]
+#
+#     elif dicom_type == 1:
+#         return c_dicom_header["AcquisitionDate"]
 
 
-def get_nii_file_suffix(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
-    """
-    Build the suffix nii file name corresponding to the current DICOM image
-
-    Parameters
-    ----------
-    c_dicom_header
-    dicom_type
-    frame_idx
-
-    Returns
-    -------
-    Suffix string
-
-    """
-    if dicom_type == 2:
-        suffix = (
-            c_dicom_header["ProtocolName"]
-            + "_"
-            # + c_dicom_header["SeriesDate"]
-            # + str(round((float(c_dicom_header["StudyTime"]))))
-            # + "_"
-            + str(c_dicom_header["SeriesNumber"])
-        )
-        suffix = suffix.replace(" ", "_")
-        return suffix
-
-    elif dicom_type == 1:
-        suffix = (
-            c_dicom_header["ProtocolName"]
-            + "_"
-            # + c_dicom_header["SeriesDate"]
-            # + str(round((float(c_dicom_header["StudyTime"]))))
-            # + "_"
-            + str(c_dicom_header["SeriesNumber"])
-        )
-        suffix = suffix.replace(" ", "_")
-        return suffix
+# def get_series_time(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
+#     """
+#     Get series time string
+#
+#     Parameters
+#     ----------
+#     c_dicom_header
+#     dicom_type
+#     frame_idx
+#
+#     Returns
+#     -------
+#     Series time
+#
+#     """
+#     if dicom_type == 1:
+#         return c_dicom_header["SeriesTime"]
+#     else:
+#         return c_dicom_header["SeriesTime"]
 
 
-def get_b_value(
-    c_dicom_header: dict, dicom_type: int, dicom_manufacturer: int, frame_idx: int
-) -> float:
-    """
-    Get b-value from a dict with the DICOM header.
-    If no b-value fond, then return 0.0
-
-    Parameters
-    ----------
-    c_dicom_header
-    dicom_type
-    dicom_manufacturer
-    frame_idx
-
-    Returns
-    -------
-    b_value
-
-    """
-    if dicom_type == 2:
-        if (
-            "DiffusionBValue"
-            in c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
-                "MRDiffusionSequence"
-            ][0].keys()
-        ):
-            return c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
-                "MRDiffusionSequence"
-            ][0]["DiffusionBValue"]
-        else:
-            return 0.0
-
-    elif dicom_type == 1:
-        if dicom_manufacturer == "siemens":
-            if "DiffusionBValue" in c_dicom_header.keys():
-                return c_dicom_header["DiffusionBValue"]
-            else:
-                return 0.0
-        elif dicom_manufacturer == "philips":
-            return c_dicom_header["DiffusionBValue"]
+# def get_series_date(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
+#     """
+#     Get series date string.
+#
+#     Parameters
+#     ----------
+#     c_dicom_header
+#     dicom_type
+#     frame_idx
+#
+#     Returns
+#     -------
+#     Series date
+#
+#     """
+#     if dicom_type == 1:
+#         return c_dicom_header["SeriesDate"]
+#     else:
+#         return c_dicom_header["SeriesDate"]
 
 
-def get_image_position(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> Tuple:
-    """
-    Get the image position patient info from the DICOM header
-
-    Parameters
-    ----------
-    c_dicom_header
-    dicom_type
-    frame_idx
-
-    Returns
-    -------
-    image position patient
-
-    """
-    if dicom_type == 2:
-        val = tuple(
-            [
-                float(i)
-                for i in c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
-                    "PlanePositionSequence"
-                ][0]["ImagePositionPatient"]
-            ]
-        )
-
-        return val
-
-    elif dicom_type == 1:
-        val = tuple([float(i) for i in c_dicom_header["ImagePositionPatient"]])
-
-        return val
+# def get_series_number(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
+#     """
+#     Get series number
+#
+#     Parameters
+#     ----------
+#     c_dicom_header
+#     dicom_type
+#     frame_idx
+#
+#     Returns
+#     -------
+#     Suffix string
+#
+#     """
+#     if dicom_type == 2:
+#         return c_dicom_header["SeriesNumber"]
+#
+#     elif dicom_type == 1:
+#         return c_dicom_header["SeriesNumber"]
 
 
-def dictify(ds: pydicom.dataset.Dataset) -> dict:
-    """
-    Turn a pydicom Dataset into a dict with keys derived from the Element tags.
-    Private info is not collected, because we cannot access it with the keyword.
-    So we need to manually fish the diffusion information in the old DICOMs.
+# def get_nii_file_suffix(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
+#     """
+#     Build the suffix nii file name corresponding to the current DICOM image
+#
+#     Parameters
+#     ----------
+#     c_dicom_header
+#     dicom_type
+#     frame_idx
+#
+#     Returns
+#     -------
+#     Suffix string
+#
+#     """
+#     if dicom_type == 2:
+#         suffix = (
+#             c_dicom_header["ProtocolName"]
+#             + "_"
+#             # + c_dicom_header["SeriesDate"]
+#             # + str(round((float(c_dicom_header["StudyTime"]))))
+#             # + "_"
+#             + str(c_dicom_header["SeriesNumber"])
+#         )
+#         suffix = suffix.replace(" ", "_")
+#         return suffix
+#
+#     elif dicom_type == 1:
+#         suffix = (
+#             c_dicom_header["ProtocolName"]
+#             + "_"
+#             # + c_dicom_header["SeriesDate"]
+#             # + str(round((float(c_dicom_header["StudyTime"]))))
+#             # + "_"
+#             + str(c_dicom_header["SeriesNumber"])
+#         )
+#         suffix = suffix.replace(" ", "_")
+#         return suffix
 
-    Parameters
-    ----------
-    ds : pydicom.dataset.Dataset
-        The Dataset to dictify
 
-    Returns
-    -------
-    DICOM header as a dict
-    """
+# def get_b_value(
+#     c_dicom_header: dict, dicom_type: int, dicom_manufacturer: int, frame_idx: int
+# ) -> float:
+#     """
+#     Get b-value from a dict with the DICOM header.
+#     If no b-value fond, then return 0.0
+#
+#     Parameters
+#     ----------
+#     c_dicom_header
+#     dicom_type
+#     dicom_manufacturer
+#     frame_idx
+#
+#     Returns
+#     -------
+#     b_value
+#
+#     """
+#     if dicom_type == 2:
+#         if (
+#             "DiffusionBValue"
+#             in c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
+#                 "MRDiffusionSequence"
+#             ][0].keys()
+#         ):
+#             return c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
+#                 "MRDiffusionSequence"
+#             ][0]["DiffusionBValue"]
+#         else:
+#             return 0.0
+#
+#     elif dicom_type == 1:
+#         if dicom_manufacturer == "siemens":
+#             if "DiffusionBValue" in c_dicom_header.keys():
+#                 return c_dicom_header["DiffusionBValue"]
+#             else:
+#                 return 0.0
+#         elif dicom_manufacturer == "philips":
+#             return c_dicom_header["DiffusionBValue"]
 
-    output = dict()
-    # iterate over all non private fields
-    for elem in ds:
-        if elem.VR != "SQ":
-            output[elem.keyword] = elem.value
-        else:
-            output[elem.keyword] = [dictify(item) for item in elem]
 
-    # add manually private diffusion fields if they exist
-    if [0x0019, 0x100C] in ds:
-        output["DiffusionBValue"] = ds[0x0019, 0x100C].value
-    if [0x0019, 0x100E] in ds:
-        output["DiffusionGradientDirection"] = ds[0x0019, 0x100E].value
-    return output
+# def get_image_position(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> Tuple:
+#     """
+#     Get the image position patient info from the DICOM header
+#
+#     Parameters
+#     ----------
+#     c_dicom_header
+#     dicom_type
+#     frame_idx
+#
+#     Returns
+#     -------
+#     image position patient
+#
+#     """
+#     if dicom_type == 2:
+#         val = tuple(
+#             [
+#                 float(i)
+#                 for i in c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
+#                     "PlanePositionSequence"
+#                 ][0]["ImagePositionPatient"]
+#             ]
+#         )
+#
+#         return val
+#
+#     elif dicom_type == 1:
+#         val = tuple([float(i) for i in c_dicom_header["ImagePositionPatient"]])
+#
+#         return val
+
+
+# def dictify(ds: pydicom.dataset.Dataset) -> dict:
+#     """
+#     Turn a pydicom Dataset into a dict with keys derived from the Element tags.
+#     Private info is not collected, because we cannot access it with the keyword.
+#     So we need to manually fish the diffusion information in the old DICOMs.
+#
+#     Parameters
+#     ----------
+#     ds : pydicom.dataset.Dataset
+#         The Dataset to dictify
+#
+#     Returns
+#     -------
+#     DICOM header as a dict
+#     """
+#
+#     output = dict()
+#     # iterate over all non private fields
+#     for elem in ds:
+#         if elem.VR != "SQ":
+#             output[elem.keyword] = elem.value
+#         else:
+#             output[elem.keyword] = [dictify(item) for item in elem]
+#
+#     # add manually private diffusion fields if they exist
+#     if [0x0019, 0x100C] in ds:
+#         output["DiffusionBValue"] = ds[0x0019, 0x100C].value
+#     if [0x0019, 0x100E] in ds:
+#         output["DiffusionGradientDirection"] = ds[0x0019, 0x100E].value
+#     return output
 
 
 def add_slice_and_frame_index(
@@ -695,149 +696,149 @@ def separate_philips_log_table(df_dicom, df_log):
     return b0_val, df_mt, df_scan_name
 
 
-def philips_export_csv_tables(
-    df_dicom: pd.DataFrame, dicom_path: str, n_images_per_file: int, output_path: str
-):
-    """
-    Export the dataframe to CSV files.
-    This is for PHILIPS data
-
-    Parameters
-    ----------
-    df_dicom
-    dicom_path
-    n_images_per_file
-
-    """
-
-    # read the log file
-    df_log = read_philips_steam_log(df_dicom, dicom_path)
-
-    b0_val, df_mt, df_scan_names = separate_philips_log_table(df_dicom, df_log)
-
-    # add slice and frame index to each row to match the nii arrays
-    df_dicom = add_slice_and_frame_index(df_dicom, n_images_per_file, manual_config)
-
-    # add adjusted b-values to df_dicom
-    df_dicom = adjust_philips_b_values(b0_val, df_dicom, df_mt)
-
-    # export df_dicom to csv tables
-    export_csv_files(df_dicom, output_path)
-
-
-def dicom_info_table(
-    dicom_files: list, dicom_manufacturer: str, dicom_type: int, n_images_per_file: int
-) -> pd.DataFrame:
-    """
-    Create a table with DICOM information
-
-    Parameters
-    ----------
-    dicom_files
-    dicom_manufacturer
-    dicom_type
-    n_images_per_file
-
-    Returns
-    df_dicom
-    -------
-
-    """
-    # instantiate a table to store DICOM info
-    df_dicom = []
-
-    # loop over each DICOM file
-    for idx, file_name in enumerate(dicom_files):
-
-        # read current DICOM
-        ds = pydicom.dcmread(open(file_name, "rb"))
-        # convert header into a dict
-        c_dicom_header = dictify(ds)
-
-        # loop over each image in the current DICOM file
-        for frame_idx in range(n_images_per_file):
-
-            # append values (will be a row in the dataframe)
-            df_dicom.append(
-                (
-                    # file name
-                    os.path.basename(file_name),
-                    # nominal interval
-                    get_nominal_interval(c_dicom_header, dicom_type, frame_idx),
-                    # acquisition time
-                    get_acquisition_time(c_dicom_header, dicom_type, frame_idx),
-                    # acquisition date
-                    get_acquisition_date(c_dicom_header, dicom_type, frame_idx),
-                    # series time
-                    get_series_time(c_dicom_header, dicom_type, frame_idx),
-                    # series date
-                    get_series_date(c_dicom_header, dicom_type, frame_idx),
-                    # series number
-                    get_series_number(c_dicom_header, dicom_type, frame_idx),
-                    # nii file name suffix
-                    get_nii_file_suffix(c_dicom_header, dicom_type, frame_idx),
-                    # b-value or zero if not a field
-                    get_b_value(
-                        c_dicom_header, dicom_type, dicom_manufacturer, frame_idx
-                    ),
-                    # image position
-                    get_image_position(c_dicom_header, dicom_type, frame_idx),
-                )
-            )
-    # column labels for the dataframe and for the csv file
-    column_labels = [
-        "file_name",
-        "nominal_interval",
-        "acquisition_time",
-        "acquisition_date",
-        "series_time",
-        "series_date",
-        "series_number",
-        "nii_file_suffix",
-        "b_value",
-        "image_position",
-    ]
-    # create a dataframe from the list
-    df_dicom = pd.DataFrame(
-        df_dicom,
-        columns=column_labels,
-    )
-    return df_dicom
+# def philips_export_csv_tables(
+#     df_dicom: pd.DataFrame, dicom_path: str, n_images_per_file: int, output_path: str
+# ):
+#     """
+#     Export the dataframe to CSV files.
+#     This is for PHILIPS data
+#
+#     Parameters
+#     ----------
+#     df_dicom
+#     dicom_path
+#     n_images_per_file
+#
+#     """
+#
+#     # read the log file
+#     df_log = read_philips_steam_log(df_dicom, dicom_path)
+#
+#     b0_val, df_mt, df_scan_names = separate_philips_log_table(df_dicom, df_log)
+#
+#     # add slice and frame index to each row to match the nii arrays
+#     df_dicom = add_slice_and_frame_index(df_dicom, n_images_per_file, manual_config)
+#
+#     # add adjusted b-values to df_dicom
+#     df_dicom = adjust_philips_b_values(b0_val, df_dicom, df_mt)
+#
+#     # export df_dicom to csv tables
+#     export_csv_files(df_dicom, output_path)
 
 
-def siemens_export_csv_tables(
-    df_dicom: pd.DataFrame,
-    header_info: dict,
-    manual_config: dict,
-    n_images_per_file: int,
-    output_path: str,
-):
-    """
-    Export csv tables with the adjusted b-values
-    This is for SIEMENS data
+# def dicom_info_table(
+#     dicom_files: list, dicom_manufacturer: str, dicom_type: int, n_images_per_file: int
+# ) -> pd.DataFrame:
+#     """
+#     Create a table with DICOM information
+#
+#     Parameters
+#     ----------
+#     dicom_files
+#     dicom_manufacturer
+#     dicom_type
+#     n_images_per_file
+#
+#     Returns
+#     df_dicom
+#     -------
+#
+#     """
+#     # instantiate a table to store DICOM info
+#     df_dicom = []
+#
+#     # loop over each DICOM file
+#     for idx, file_name in enumerate(dicom_files):
+#
+#         # read current DICOM
+#         ds = pydicom.dcmread(open(file_name, "rb"))
+#         # convert header into a dict
+#         c_dicom_header = dictify(ds)
+#
+#         # loop over each image in the current DICOM file
+#         for frame_idx in range(n_images_per_file):
+#
+#             # append values (will be a row in the dataframe)
+#             df_dicom.append(
+#                 (
+#                     # file name
+#                     os.path.basename(file_name),
+#                     # nominal interval
+#                     get_nominal_interval(c_dicom_header, dicom_type, frame_idx),
+#                     # acquisition time
+#                     get_acquisition_time(c_dicom_header, dicom_type, frame_idx),
+#                     # acquisition date
+#                     get_acquisition_date(c_dicom_header, dicom_type, frame_idx),
+#                     # series time
+#                     get_series_time(c_dicom_header, dicom_type, frame_idx),
+#                     # series date
+#                     get_series_date(c_dicom_header, dicom_type, frame_idx),
+#                     # series number
+#                     get_series_number(c_dicom_header, dicom_type, frame_idx),
+#                     # nii file name suffix
+#                     get_nii_file_suffix(c_dicom_header, dicom_type, frame_idx),
+#                     # b-value or zero if not a field
+#                     get_b_value(
+#                         c_dicom_header, dicom_type, dicom_manufacturer, frame_idx
+#                     ),
+#                     # image position
+#                     get_image_position(c_dicom_header, dicom_type, frame_idx),
+#                 )
+#             )
+#     # column labels for the dataframe and for the csv file
+#     column_labels = [
+#         "file_name",
+#         "nominal_interval",
+#         "acquisition_time",
+#         "acquisition_date",
+#         "series_time",
+#         "series_date",
+#         "series_number",
+#         "nii_file_suffix",
+#         "b_value",
+#         "image_position",
+#     ]
+#     # create a dataframe from the list
+#     df_dicom = pd.DataFrame(
+#         df_dicom,
+#         columns=column_labels,
+#     )
+#     return df_dicom
 
-    Parameters
-    ----------
-    df_dicom
-    header_info
-    manual_config
-    n_images_per_file
-    output_path
 
-    Returns
-    -------
-
-    """
-    # sort the dataframe by date and time, this is needed in case we need to adjust
-    # the b-values by the DICOM timings
-    df_dicom = sort_by_date_time(df_dicom)
-    # add slice and frame index to each row to match the nii arrays
-    df_dicom = add_slice_and_frame_index(df_dicom, n_images_per_file, manual_config)
-    # adjust b-values
-    df_dicom = adjust_b_val_and_dir(df_dicom, manual_config, header_info)
-    # create a csv file with the adjusted b-values,
-    # the frame index and slice index for each nii file
-    export_csv_files(df_dicom, output_path)
+# def siemens_export_csv_tables(
+#     df_dicom: pd.DataFrame,
+#     header_info: dict,
+#     manual_config: dict,
+#     n_images_per_file: int,
+#     output_path: str,
+# ):
+#     """
+#     Export csv tables with the adjusted b-values
+#     This is for SIEMENS data
+#
+#     Parameters
+#     ----------
+#     df_dicom
+#     header_info
+#     manual_config
+#     n_images_per_file
+#     output_path
+#
+#     Returns
+#     -------
+#
+#     """
+#     # sort the dataframe by date and time, this is needed in case we need to adjust
+#     # the b-values by the DICOM timings
+#     df_dicom = sort_by_date_time(df_dicom)
+#     # add slice and frame index to each row to match the nii arrays
+#     df_dicom = add_slice_and_frame_index(df_dicom, n_images_per_file, manual_config)
+#     # adjust b-values
+#     df_dicom = adjust_b_val_and_dir(df_dicom, manual_config, header_info)
+#     # create a csv file with the adjusted b-values,
+#     # the frame index and slice index for each nii file
+#     export_csv_files(df_dicom, output_path)
 
 
 def read_philips_steam_log(df_dicom: pd.DataFrame, dicom_path: str) -> pd.DataFrame:
@@ -920,179 +921,132 @@ def get_data_from_dicoms_and_export(
     dicom_path: str,
     output_path: str,
     sequence_option: str,
-    anonymise_option: str,
-    manual_config: dict,
 ):
     """
-    # main function. This function will convert DICOMs to NIfTIs and
-    # if steam data also create csv tables with the adjusted b-values
+    # main function. This function will anonymise the NIfTI files in a
+    # new folder
 
     Parameters
     ----------
     dicom_path: str path to dicom files
     output_path: str path to output folder for nifti files
     sequence_option: "se" or "steam"
-    anonymise_option: "yes" or "no"
-    manual_config: dict with manual configuration of some parameters
 
     """
 
     # create output folder if it does not exist
     if not os.path.exists(output_path):
         os.makedirs(output_path)
-    # # if it exists, clear previous files
-    # else:
-    #     files = glob.glob(os.path.join(output_path, "*"))
-    #     for f in files:
-    #         os.remove(f)
 
-    # run the dcm2niix command
-    run_command = "dcm2niix -ba y -f %p_%s -o " + output_path + " " + dicom_path
-    os.system(run_command)
+    # copy files to output folder
+    nii_files = glob.glob(os.path.join(dicom_path, "*.nii"))
+    for nii_file in nii_files:
+        shutil.copy(nii_file, output_path)
+    bval_files = glob.glob(os.path.join(dicom_path, "*.bval"))
+    for bval_file in bval_files:
+        shutil.copy(bval_file, output_path)
+    bvec_files = glob.glob(os.path.join(dicom_path, "*.bvec"))
+    for bvec_file in bvec_files:
+        shutil.copy(bvec_file, output_path)
+    json_files = glob.glob(os.path.join(dicom_path, "*.json"))
+    for json_file in json_files:
+        shutil.copy(json_file, output_path)
+
+    # remove the acquisition date and time info from the json files
+    json_files = glob.glob(os.path.join(output_path, "*.json"))
+    for json_file in json_files:
+        # json file to dict
+        json_data = open(json_file)
+        json_data = json_data.read()
+        json_data = json.loads(json_data)
+
+        # remove acquisition date and time
+        if "AcquisitionDate" in json_data:
+            json_data.pop("AcquisitionDate")
+        if "AcquisitionTime" in json_data:
+            json_data.pop("AcquisitionTime")
+
+        # dict to json file
+        json_string = json.dumps(json_data, indent=4)
+        with open(json_file, "w") as f:
+            f.write(json_string)
+
     print("=============================================")
-    print("dcm2niix command done.")
+    print("json files cleaned.")
     print("=============================================")
 
-    # create bool option for anonymisation
-    if anonymise_option == "yes":
-        anonymise_option = True
-    else:
-        anonymise_option = False
+    # Remove the "descrip" header field from the nifti files
+    # it may contain acquisition time.
+    nii_files = glob.glob(os.path.join(output_path, "*.nii"))
+    for nii_file in nii_files:
+        img = nib.load(nii_file)
+        nii_hdr = img.header.copy()
+        if "descrip" in nii_hdr:
+            nii_hdr["descrip"] = "removed"
+        new_img = nib.Nifti1Image(img.get_fdata(), img.affine, nii_hdr)
+        nib.save(new_img, nii_file)
 
-    if anonymise_option:
-        # remove the acquisition date and time info from the json files
-        json_files = glob.glob(os.path.join(output_path, "*.json"))
-        for json_file in json_files:
-            # json file to dict
-            json_data = open(json_file)
-            json_data = json_data.read()
-            json_data = json.loads(json_data)
+    print("=============================================")
+    print("nii files cleaned.")
+    print("=============================================")
 
-            # remove acquisition date and time
-            if "AcquisitionDate" in json_data:
-                json_data.pop("AcquisitionDate")
-            if "AcquisitionTime" in json_data:
-                json_data.pop("AcquisitionTime")
+    # rename all files to avoid potential identifiers
+    def custom_file_rename(list_of_files, output_path):
+        list_of_files.sort()
+        for idx, file in enumerate(list_of_files):
+            c_file = os.path.basename(file)
 
-            # dict to json file
-            json_string = json.dumps(json_data, indent=4)
-            with open(json_file, "w") as f:
-                f.write(json_string)
+            filename, file_extension = os.path.splitext(c_file)
+            new_name = "cdti_sig_data_" + str(idx + 1).zfill(3) + file_extension
+            os.rename(file, os.path.join(output_path, new_name))
 
-        print("=============================================")
-        print("json files cleaned.")
-        print("=============================================")
+    # nii files
+    nii_files = glob.glob(os.path.join(output_path, "*.nii"))
+    custom_file_rename(nii_files, output_path)
+    # json files
+    json_files = glob.glob(os.path.join(output_path, "*.json"))
+    custom_file_rename(json_files, output_path)
+    # bval and bvec files
+    bval_files = glob.glob(os.path.join(output_path, "*.bval"))
+    custom_file_rename(bval_files, output_path)
+    bvec_files = glob.glob(os.path.join(output_path, "*.bvec"))
+    custom_file_rename(bvec_files, output_path)
 
-        # Remove the "descrip" header field from the nifti files
-        # it may contain acquisition time.
-        nii_files = glob.glob(os.path.join(output_path, "*.nii"))
-        for nii_file in nii_files:
-            img = nib.load(nii_file)
-            nii_hdr = img.header.copy()
-            if "descrip" in nii_hdr:
-                nii_hdr["descrip"] = "removed"
-            new_img = nib.Nifti1Image(img.get_fdata(), img.affine, nii_hdr)
-            nib.save(new_img, nii_file)
+    print("=============================================")
+    print("nii, json, bval, bvec file(s) renamed successfully!")
+    print("=============================================")
 
-        print("=============================================")
-        print("nii files cleaned.")
-        print("=============================================")
-
-    # if STEAM sequence, create csv tables with the adjusted b-values
     if sequence_option == "steam":
 
-        # list all the DICOM files
-        dicom_files = glob.glob(os.path.join(dicom_path, "*.dcm"))
-        dicom_files.sort()
+        csv_files = glob.glob(os.path.join(dicom_path, "*.csv"))
+        for csv_file in csv_files:
+            shutil.copy(csv_file, output_path)
 
-        assert len(dicom_files) > 0, "No DICOM files found in the folder!"
-
-        # collect header info from the first DICOM
-        header_info = pydicom.dcmread(open(dicom_files[0], "rb"))
-
-        # check version, number of images per DICOM and manufacturer
-        dicom_type, n_images_per_file, dicom_manufacturer = check_dicom_version(
-            header_info
-        )
-
-        # dictify dicom header
-        header_info = dictify(header_info)
-
-        # dataframe with DICOM info
-        df_dicom = dicom_info_table(
-            dicom_files, dicom_manufacturer, dicom_type, n_images_per_file
-        )
-
-        if dicom_manufacturer == "siemens":
-            siemens_export_csv_tables(
-                df_dicom, header_info, manual_config, n_images_per_file, output_path
-            )
-        elif dicom_manufacturer == "philips":
-            philips_export_csv_tables(
-                df_dicom, dicom_path, n_images_per_file, output_path
-            )
+        # csv files
+        csv_files = glob.glob(os.path.join(output_path, "*.csv"))
+        custom_file_rename(csv_files, output_path)
 
         print("=============================================")
-        print("csv file(s) exported successfully!")
+        print("csv file(s) renamed successfully!")
         print("=============================================")
-
-    if anonymise_option:
-        # rename all files to avoid potential identifiers
-        def custom_file_rename(list_of_files, output_path):
-            list_of_files.sort()
-            for idx, file in enumerate(list_of_files):
-                c_file = os.path.basename(file)
-
-                filename, file_extension = os.path.splitext(c_file)
-                new_name = "cdti_sig_data_" + str(idx + 1).zfill(3) + file_extension
-                os.rename(file, os.path.join(output_path, new_name))
-
-        # nii files
-        nii_files = glob.glob(os.path.join(output_path, "*.nii"))
-        custom_file_rename(nii_files, output_path)
-        # json files
-        json_files = glob.glob(os.path.join(output_path, "*.json"))
-        custom_file_rename(json_files, output_path)
-        # bval and bvec files
-        bval_files = glob.glob(os.path.join(output_path, "*.bval"))
-        custom_file_rename(bval_files, output_path)
-        bvec_files = glob.glob(os.path.join(output_path, "*.bvec"))
-        custom_file_rename(bvec_files, output_path)
-
-        print("=============================================")
-        print("nii, json, bval, bvec file(s) renamed successfully!")
-        print("=============================================")
-
-        if sequence_option == "steam":
-            # csv files
-            csv_files = glob.glob(os.path.join(output_path, "*.csv"))
-            custom_file_rename(csv_files, output_path)
-
-            print("=============================================")
-            print("csv file(s) renamed successfully!")
-            print("=============================================")
 
 
 if __name__ == "__main__":
     # arguments from command line
 
     # check if the number of arguments is correct
-    assert len(sys.argv) == 5, "Incorrect number of arguments!"
+    assert len(sys.argv) == 4, "Incorrect number of arguments!"
 
-    # path to where to store nii and other files
+    # path to original non anonymised nii files
     output_path = sys.argv[2]
-    # path to the DICOMs folder
+    # path to original non anonymised nii files
     dicom_path = sys.argv[1]
     # sequence option
     sequence_option = sys.argv[3]
-    # anonymise option
-    anonymise_option = sys.argv[4]
 
     # checks of the input arguments
     assert os.path.exists(dicom_path), "DICOM path does not exist!"
-    # assert not os.path.exists(output_path), "Output path already exists!"
     assert sequence_option in ["se", "steam"], "Sequence option not recognised!"
-    assert anonymise_option in ["yes", "no"], "Anonymise option not recognised!"
     # check output argument folder doesn't exist or is empty
     if os.path.exists(output_path):
         assert len(os.listdir(output_path)) == 0, "Output folder is not empty!"
@@ -1102,19 +1056,11 @@ if __name__ == "__main__":
     print("DICOM path: " + dicom_path)
     print("Output path: " + output_path)
     print("Sequence option: " + sequence_option)
-    print("Anonymise option: " + anonymise_option)
     print("=============================================")
-
-    # ==========================================================
-    # Manual configuration of some parameters
-    # if everything else fails, we can use these values
-    manual_config = {"assumed_rr_interval": 1000.0, "calculated_real_b0": 30}
 
     # run main function
     get_data_from_dicoms_and_export(
         dicom_path,
         output_path,
         sequence_option,
-        anonymise_option,
-        manual_config,
     )

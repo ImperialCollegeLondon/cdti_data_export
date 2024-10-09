@@ -11,7 +11,7 @@ Anonymisation of cardiac diffusion tensor imaging data.<br>
 
 This repository contains a Python script designed to anonymise cardiac DTI data, and to convert DICOM data to NIFTI format.
 
-This is going to be the standard procedure to share cardiac DTI data within the
+This is going to be the standard procedure to share cardiac DTI data in the multicentre study from the
 [Cardiac Diffusion Special Interest Group (SCMR)](https://scmr.site-ym.com/group/Diffusion).
 
 This README describes the steps to install and run the Python script.
@@ -33,6 +33,8 @@ This tool exports:
 
 >[!WARNING]
 > At the moment we do not support enhanced multi-image DICOMs.
+>
+> Philips data support is currently in beta. Please report any issues.
 
 ---
 
@@ -47,21 +49,26 @@ For macOS with Homebrew you can just run the command: `brew install dcm2niix`.
 
 ### Python enviroment
 
-A recent version of Python 3 is needed. This script was developed on Python 3.10 (macOS).
+A recent version of Python 3 is needed. This script was developed with Python 3.12 (macOS).
 
 Check this link for [Python installation instructions](https://realpython.com/installing-python/) if you don't have Python 3 installed in your system.
 
-Clone or download this repository, go to the repository folder and create a virtual environment
-and install the dependencies. If you have `git` you can use the following terminal commands:
+### Steps
 
-**Get the repository:**
+1) Clone or download this repository.
+2) Go to the repository folder and create a virtual environment
+and install the dependencies.
+
+If you have `git` you can use the following terminal commands:
+
+**1 Get the repository:**
 
 ```bash
 git clone https://github.com/ImperialCollegeLondon/cdti_data_export.git
 cd cdti_data_export
 ```
 
-**Create the virtual environment and install the dependencies:**
+**2 Create the virtual environment and install the dependencies:**
 
 ```bash
 python -m venv .venv
@@ -69,6 +76,7 @@ source .venv/bin/activate
 pip install -U pip setuptools wheel pip-tools
 pip install -r requirements.txt
 ```
+
 >[!NOTE]
 > Note: you may need to specify `python3` instead of `python` command for some systems.
 
@@ -80,6 +88,8 @@ You will need the full path for the input and output folders.
 
 - `<input_folder>` is the path to the folder where the DICOM files are located.
 - `<output_folder>` is the path to the folder where the nii files will be created.
+- `sequence` must be `se` or `steam` depending on the sequence.
+- `anonymisation` must be either `yes` or `no` depending on whether you want to anonymise the data. In general the correct option is `yes`.
 
 >[!WARNING]
 > Make sure you are using the python virtual environment created in the repository folder.
@@ -93,14 +103,14 @@ source .venv/bin/activate
 >[!NOTE]
 > For Philips STEAM data, the scan log file should also be in the `<input_folder>`.
 
-Finally run the following command:
+Finally run the following command in the terminal:
 
 ```bash
 # for SE data
-python cdti_data_export.py <input_folder> <output_folder>
+python cdti_data_export.py <input_folder> <output_folder> se yes
 
 # for STEAM data
-python cdti_data_export.py <input_folder> <output_folder> steam
+python cdti_data_export.py <input_folder> <output_folder> steam yes
 ```
 
 ### Output
