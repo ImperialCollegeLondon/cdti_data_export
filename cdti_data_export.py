@@ -16,6 +16,7 @@ import re
 import json
 import nibabel as nib
 from datetime import datetime
+import yaml
 
 
 def is_unique(s):
@@ -946,12 +947,27 @@ def get_data_from_dicoms_and_export(
     #     for f in files:
     #         os.remove(f)
 
+    # create a dictionary with a checklist of the anonymisation pipeline
+    anon_pipeline = {
+        "running_dcm2niix_command": "no",
+        "anonymising_json_files": "no",
+        "anonymising_nii_files": "no",
+        "csv_files_created": "no",
+        "renaming_nii_json_bval_bvec_files": "no",
+        "renaming_csv_files": "no",
+    }
+
     # run the dcm2niix command
     run_command = "dcm2niix -ba y -f %p_%s -o " + output_path + " " + dicom_path
     os.system(run_command)
     print("=============================================")
     print("dcm2niix command done.")
     print("=============================================")
+    anon_pipeline["running_dcm2niix_command"] = "yes"
+
+    # check at least one nifti file was created
+    nii_files = glob.glob(os.path.join(output_path, "*.nii"))
+    assert len(nii_files) > 0, "No NIfTI files found in the folder!"
 
     # create bool option for anonymisation
     if anonymise_option == "yes":
@@ -968,11 +984,17 @@ def get_data_from_dicoms_and_export(
             json_data = json_data.read()
             json_data = json.loads(json_data)
 
-            # remove acquisition date and time
-            if "AcquisitionDate" in json_data:
-                json_data.pop("AcquisitionDate")
-            if "AcquisitionTime" in json_data:
-                json_data.pop("AcquisitionTime")
+            # list of keys not to be removed
+            keys_to_keep = [
+                "ImageComments",
+                "ImageOrientationPatientDICOM",
+                "SliceThickness",
+                "SeriesNumber",
+            ]
+            # remove all keys not in the list
+            for key in list(json_data.keys()):
+                if key not in keys_to_keep:
+                    json_data.pop(key)
 
             # dict to json file
             json_string = json.dumps(json_data, indent=4)
@@ -982,6 +1004,7 @@ def get_data_from_dicoms_and_export(
         print("=============================================")
         print("json files cleaned.")
         print("=============================================")
+        anon_pipeline["anonymising_json_files"] = "yes"
 
         # Remove the "descrip" header field from the nifti files
         # it may contain acquisition time.
@@ -997,6 +1020,7 @@ def get_data_from_dicoms_and_export(
         print("=============================================")
         print("nii files cleaned.")
         print("=============================================")
+        anon_pipeline["anonymising_nii_files"] = "yes"
 
     # if STEAM sequence, create csv tables with the adjusted b-values
     if sequence_option == "steam":
@@ -1028,6 +1052,14 @@ def get_data_from_dicoms_and_export(
                 df_dicom, header_info, manual_config, n_images_per_file, output_path
             )
         elif dicom_manufacturer == "philips":
+
+            # at the moment we cannot use this script for Philips STEAM data as we will not have
+            # access to the log file, we are currently investigating this issue
+            # throw error if so
+            assert (
+                sequence_option != "steam"
+            ), "Philips STEAM data not supported at the moment. Fix coming soon..."
+
             philips_export_csv_tables(
                 df_dicom, dicom_path, n_images_per_file, output_path
             )
@@ -1035,6 +1067,7 @@ def get_data_from_dicoms_and_export(
         print("=============================================")
         print("csv file(s) exported successfully!")
         print("=============================================")
+        anon_pipeline["csv_files_created"] = "yes"
 
     if anonymise_option:
         # rename all files to avoid potential identifiers
@@ -1062,8 +1095,10 @@ def get_data_from_dicoms_and_export(
         print("=============================================")
         print("nii, json, bval, bvec file(s) renamed successfully!")
         print("=============================================")
+        anon_pipeline["renaming_nii_json_bval_bvec_files"] = "yes"
 
         if sequence_option == "steam":
+
             # csv files
             csv_files = glob.glob(os.path.join(output_path, "*.csv"))
             custom_file_rename(csv_files, output_path)
@@ -1071,6 +1106,15 @@ def get_data_from_dicoms_and_export(
             print("=============================================")
             print("csv file(s) renamed successfully!")
             print("=============================================")
+            anon_pipeline["renaming_csv_files"] = "yes"
+
+    # save the anonymisation pipeline as a yaml file
+    anon_pipeline_file = os.path.join(output_path, "anon_pipeline.yaml")
+    with open(anon_pipeline_file, "w") as f:
+        yaml.dump(anon_pipeline, f, default_flow_style=False)
+    print("=============================================")
+    print("Anonymisation pipeline saved")
+    print("=============================================")
 
 
 if __name__ == "__main__":
