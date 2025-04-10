@@ -1025,8 +1025,13 @@ def get_data_from_dicoms_and_export(
     # if STEAM sequence, create csv tables with the adjusted b-values
     if sequence_option == "steam":
 
-        # list all the DICOM files
-        dicom_files = glob.glob(os.path.join(dicom_path, "*.dcm"))
+        # list all the DICOM files with extensions .dcm, .DCM,, .ima, or .IMA
+        included_extensions = ["dcm", "DCM", "IMA", "ima"]
+        dicom_files = [
+            os.path.join(dicom_path, fn)
+            for fn in os.listdir(dicom_path)
+            if any(fn.endswith(ext) for ext in included_extensions)
+        ]
         dicom_files.sort()
 
         assert len(dicom_files) > 0, "No DICOM files found in the folder!"
