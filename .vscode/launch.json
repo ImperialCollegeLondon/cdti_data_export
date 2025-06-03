@@ -1,21 +1,17 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
     "configurations": [
         {
-            "name": "debug current file",
+            "name": "Python Debugger: Current File",
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "/Users/pferreir/WORK/WORK_2/SIGNET/Andy/phantom_cyclooctane/steam_data/dicom/diffusion_images",
-                "/Users/pferreir/WORK/WORK_2/SIGNET/Andy/phantom_cyclooctane/steam_data/nii/diffusion_images",
+                "/Users/pf/WORK/WORK_2/SIGNET/Andy/phantom_cyclooctane/steam_data/dicom/diffusion_images",
+                "/Users/pf/WORK/WORK_2/SIGNET/Andy/phantom_cyclooctane/steam_data/nii_test/diffusion_images",
                 "steam",
                 "yes",
-            ]
+            ],
         }
     ]
 }
