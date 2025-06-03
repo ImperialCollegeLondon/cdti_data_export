@@ -11,8 +11,10 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "/Users/pf/WORK/WORK_2/CIMA_scans/test_nii_conversion/siemens/se/dicom/diffusion_images",
-                "/Users/pf/WORK/WORK_2/CIMA_scans/test_nii_conversion/siemens/se/nii2/diffusion_images",
+                "/Users/pferreir/WORK/WORK_2/SIGNET/Andy/phantom_cyclooctane/steam_data/dicom/diffusion_images",
+                "/Users/pferreir/WORK/WORK_2/SIGNET/Andy/phantom_cyclooctane/steam_data/nii/diffusion_images",
+                "steam",
+                "yes",
             ]
         }
     ]
