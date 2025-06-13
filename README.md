@@ -1,74 +1,72 @@
-# Exporting anonymised Cardiac Diffusion Tensor data
+# Exporting Anonymised Cardiac Diffusion Tensor Data
 
 <p align="center">
-<img src="assets/main_fig/main_fig.png">
+  <img src="assets/main_fig/main_fig.png">
 </p>
 
 <p align="center">
-Anonymisation of cardiac diffusion tensor imaging data.<br>
-
+    Anonymisation of cardiac diffusion tensor imaging data.<br>
 </p>
 
-This repository contains a Python script designed to anonymise cardiac DTI data, and to convert DICOM data to NIFTI format.
+This repository provides a Python script to anonymise cardiac DTI data and convert DICOM files to NIFTI format.
 
-This is going to be the standard procedure to share cardiac DTI data in the multicentre study from the
-[Cardiac Diffusion Special Interest Group (SCMR)](https://scmr.site-ym.com/group/Diffusion).
+This is the standard procedure for sharing cardiac DTI data in the multicentre study of the [Cardiac Diffusion Special Interest Group (SCMR)](https://scmr.site-ym.com/group/Diffusion).
 
-This README describes the steps to install and run the Python script.
+Below are the steps to install and run the script.
+
+---
 
 ## Introduction
 
-Cardiac DTI DICOM data should be converted to NIFTI format without any personal information.
-A Python script that internally calls the [dcm2niix](https://github.com/rordenlab/dcm2niix) command tool is going to be used for this purpose.
-This tool exports:
+Cardiac DTI DICOM data should be converted to NIFTI format without any personal information.  
+This Python script uses the [dcm2niix](https://github.com/rordenlab/dcm2niix) tool to:
 
-- NIFTI files which contain the pixel values and minimal metadata information
-- b-values
-- diffusion directions
-- Extra metadata in a JSON file.
-- CSV file with adjusted b-values (STEAM sequences only)
+- Export NIFTI files containing pixel data and minimal metadata
+- Export b-values
+- Export diffusion directions
+- Save extra metadata in a JSON file
+- Save adjusted b-values in a CSV file (STEAM sequences only)
+- Save a YAML file with details of the anonymisation steps performed
 
->[!NOTE]
-> The diffusion direction files given by `dcm2niix` are already rotated to the image plane.
+> [!NOTE]
+> The diffusion direction files produced by `dcm2niix` are already rotated to the image plane.
 
->[!WARNING]
-> At the moment we do not support enhanced multi-image DICOMs.
->
-> Philips data support is currently in beta. Please report any issues.
+> [!WARNING]
+> Enhanced multi-image DICOMs are not currently supported.  
+> Philips STEAM data is work in progress, please report any issues.
 
 ---
 
 ## Installation
 
-### dcm2nixx
+### dcm2niix
 
-Install the `dcm2niix` tool. More information on how to install it can be
-found in [this link](https://github.com/rordenlab/dcm2niix?tab=readme-ov-file#install).
+Install the `dcm2niix` tool. See [installation instructions](https://github.com/rordenlab/dcm2niix?tab=readme-ov-file#install).
 
-For macOS with Homebrew you can just run the command: `brew install dcm2niix`.
+For macOS with Homebrew:
 
-### Python enviroment
+```bash
+brew install dcm2niix
+```
 
-A recent version of Python 3 is needed. This script was developed with Python 3.12 (macOS).
+### Python Environment
 
-Check this link for [Python installation instructions](https://realpython.com/installing-python/) if you don't have Python 3 installed in your system.
+A recent version of Python 3 is required (developed with Python 3.12 on macOS).  
+See [Python installation instructions](https://realpython.com/installing-python/) if needed.
 
-### Steps
+### Setup Steps
 
-1) Clone or download this repository.
-2) Go to the repository folder and create a virtual environment
-and install the dependencies.
+1. **Clone or download this repository.**
+2. **Create a virtual environment and install dependencies.**
 
-If you have `git` you can use the following terminal commands:
-
-**1 Get the repository:**
+If you have `git`, run:
 
 ```bash
 git clone https://github.com/ImperialCollegeLondon/cdti_data_export.git
 cd cdti_data_export
 ```
 
-**2 Create the virtual environment and install the dependencies:**
+Create the virtual environment and install dependencies:
 
 ```bash
 python -m venv .venv
@@ -77,50 +75,53 @@ pip install -U pip setuptools wheel pip-tools
 pip install -r requirements.txt
 ```
 
->[!NOTE]
-> Note: you may need to specify `python3` instead of `python` command for some systems.
+> [!NOTE]
+> You may need to use `python3` instead of `python` on some systems.
 
 ---
 
-## Running
+## Running the Script
 
-You will need the full path for the input and output folders.
+You will need the full paths for the input and output folders:
 
-- `<input_folder>` is the path to the folder where the DICOM files are located.
-- `<output_folder>` is the path to the folder where the nii files will be created.
-- `sequence` must be `se` or `steam` depending on the sequence.
-- `anonymisation` must be either `yes` or `no` depending on whether you want to anonymise the data. In general the correct option is `yes`.
+- `<input_folder>`: Folder containing the DICOM files (all files should be at the root, not in subfolders).
+- `<output_folder>`: Folder where the NIFTI files will be created.
+- `sequence`: Either `se` or `steam`, depending on the sequence.
+- `anonymisation`: `yes` or `no` (generally, use `yes`).
 
->[!WARNING]
-> Make sure you are using the python virtual environment created in the repository folder.
-> You can use the following commands to activate it:
+> [!WARNING]
+> Ensure you have activated the Python virtual environment in the repository folder:
+>
+> ```bash
+> cd <repository_folder>
+> source .venv/bin/activate
+> ```
+
+> [!NOTE]
+> For Philips STEAM data, the `<input_folder>` should also include the scan log file (`*.csv`).  
+> TODO: Ask Irvin Teh for details on obtaining this log file.
+
+Run the script:
 
 ```bash
-cd <repository_folder>
-source .venv/bin/activate
-```
-
->[!NOTE]
-> For Philips STEAM data, the scan log file should also be in the `<input_folder>`.
-
-Finally run the following command in the terminal:
-
-```bash
-# for SE data
+# To anonymise SE data
 python cdti_data_export.py <input_folder> <output_folder> se yes
 
-# for STEAM data
+# To anonymise STEAM data
 python cdti_data_export.py <input_folder> <output_folder> steam yes
 ```
 
-### Output
+---
 
-If the scripts runs successfully, the `<output_folder>` should contain one or multiple:
+## Output
+
+If the script runs successfully, `<output_folder>` will contain:
 
 - NIFTI files: `*.nii`
 - b-values: `*.bval`
 - diffusion directions: `*.bvec`
 - Extra metadata: `*.json`
-- adjusted b-value tables `*.csv` (STEAM sequences only)
+- Adjusted b-value tables: `*.csv` (STEAM sequences only)
+- YAML file with anonymisation information: `anon_pipeline.yml`
 
-Please double check if no private data is present in the output files, including acquisition date and time.
+**Please double-check that no private data (including acquisition date and time) is present in the output files.**
