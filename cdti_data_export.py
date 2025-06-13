@@ -696,9 +696,7 @@ def separate_philips_log_table(df_dicom, df_log):
     return b0_val, df_mt, df_scan_name
 
 
-def philips_export_csv_tables(
-    df_dicom: pd.DataFrame, dicom_path: str, n_images_per_file: int, output_path: str
-):
+def philips_export_csv_tables(dicom_path: str, output_path: str):
     """
     Export the dataframe to CSV files.
     This is for PHILIPS data
@@ -711,8 +709,10 @@ def philips_export_csv_tables(
 
     """
 
+    # TODO continue here
+
     # read the log file
-    df_log = read_philips_steam_log(df_dicom, dicom_path)
+    df_log = read_philips_steam_log(dicom_path, output_path)
 
     b0_val, df_mt, df_scan_names = separate_philips_log_table(df_dicom, df_log)
 
@@ -841,7 +841,7 @@ def siemens_export_csv_tables(
     export_csv_files(df_dicom, output_path)
 
 
-def read_philips_steam_log(df_dicom: pd.DataFrame, dicom_path: str) -> pd.DataFrame:
+def read_philips_steam_log(dicom_path: str, output_path: str) -> pd.DataFrame:
     """
     Read Philips STEAM scan log file. Collect important diffusion information including:
     - scan order
@@ -858,61 +858,100 @@ def read_philips_steam_log(df_dicom: pd.DataFrame, dicom_path: str) -> pd.DataFr
     df_log
 
     """
-    # open log to text list
-    # this file is assumed to be in the same folder as the input DICOMs
-    with open(
-        os.path.join(dicom_path, "devlogcurrent.log"), encoding="ISO-8859-1"
-    ) as f:
-        txt = f.readlines()
 
-    # remove new lines and separate text by tab
-    txt = [t.strip() for t in txt]
-    txt = [t.split("\t") for t in txt]
+    # open the log file
+    # find all csv files in the dicom_path
+    log_files = glob.glob(os.path.join(dicom_path, "*.csv"))
+    if len(log_files) == 0:
+        raise FileNotFoundError(
+            f"No log files found in the DICOM path: {dicom_path}. Please check the path."
+        )
+    elif len(log_files) > 1:
+        raise FileExistsError(
+            f"Multiple log files found in the DICOM path: {dicom_path}. Please ensure only one log file exists."
+        )
 
-    # convert list to pandas dataframe
-    df_log = pd.DataFrame(txt)
+    # read the csv file into a dataframe
+    try:
+        df_log = pd.read_csv(log_files[0], header=None, encoding="ISO-8859-1")
+    except Exception as e:
+        raise ValueError(
+            f"Error reading the log file: {log_files[0]}. Please check the file format."
+        ) from e
 
+    # cleanup the dataframe
     # remove some irrelevant columns
-    df_log = df_log.drop(columns=[0, 3, 4, 6, 7, 8, 10, 11, 12, 13])
-
-    # get table with only relevant diffusion information
-    searchfor = [
-        "CS-SCMR-SIG mixing time:",
-        "CS-STE-DIFF: value b0:",
-        "00 00 00: scan_name",
-        "00 00 00: start_scan_date_time",
-    ]
-    df_log = df_log[df_log[9].str.contains("|".join(searchfor)) == True]
-
-    # # ===========================================================
-    # # TODO this needs to be removed once fixed by C Stoeck
-    # print("===========================================================")
-    # print("Hard coded values for the log file!")
-    # print("Remove once fixed!")
-    # print("===========================================================")
-    # df_dicom["series_date"] = "20240606"
-    # # ===========================================================
-
-    # the DICOMS should have a fixed date and time, so we can filter the log file
-    assert is_unique(
-        df_dicom["series_date"]
-    ), "series_date values are not unique in table!"
-    SeriesDate = df_dicom["series_date"].values[0]
-    assert is_unique(
-        df_dicom["series_time"]
-    ), "series_time values are not unique in table!"
-    SeriesTime = df_dicom["series_time"].values[0]
-
-    # combine time and date
-    datetime_str = SeriesDate + " " + SeriesTime
-    datetime_object = datetime.strptime(datetime_str, "%Y%m%d %H%M%S.%f")
-    # remove anything before the series date and time
-    df_log["acquisition_date_time"] = df_log[1] + " " + df_log[2]
-    df_log["acquisition_date_time"] = pd.to_datetime(
-        df_log["acquisition_date_time"], format="%Y-%m-%d %H:%M:%S.%f"
+    df_log = df_log.drop(columns=[1, 2, 3, 4, 6, 7, 9, 11, 12])
+    # rename the columns
+    df_log = df_log.rename(
+        columns={
+            0: "acquisition_time",
+            5: "average",
+            8: "diff_vector",
+            10: "TM",
+            13: "assumed_RR",
+        }
     )
-    df_log = df_log.drop(columns=[1, 2])
-    df_log = df_log[df_log["acquisition_date_time"] > datetime_object]
+    # create a new column with the b-value adjustment factor
+    df_log["b_value_adjustment_factor"] = df_log["TM"] / df_log["assumed_RR"]
+
+    # create a new column for the original b-values
+    df_log["b_value_original"] = -10.0  # default value, will be adjusted later
+
+    # Function to extract a number from a certain position in the string
+    def get_number(log_string, pos):
+        return re.findall(r"\d+", log_string)[pos]
+
+    # list the bval files from the output path
+    bval_files = glob.glob(os.path.join(output_path, "*.bval"))
+    # create a dataframe with the bval_files
+    file_table = pd.DataFrame(bval_files, columns=["bval_file"])
+    file_table["average"] = file_table.apply(
+        lambda x: get_number(x["bval_file"], -2), axis=1
+    )
+    file_table["series_number"] = file_table.apply(
+        lambda x: get_number(x["bval_file"], -1), axis=1
+    )
+    # sort table by series number and then average
+    file_table = file_table.sort_values(by=["series_number", "average"]).reset_index(
+        drop=True
+    )
+
+    file_table["average"] = file_table["bval_file"].str.extract(r"AVG(\d+)")
+
+    file_table["series_number"] = re.findall(r"\d+", file_table["bval_file"][0])[-1]
+
+    # for each bval_file, read the b-values and add them to the dataframe
+    c_average_val = 0
+    for idx, bval_file in enumerate(bval_files):
+        # read the bval file
+        with open(bval_file, "r") as f:
+            bvals = f.read().strip().split()
+            # convert to float
+            bvals = [float(b) for b in bvals]
+            n_vals = len(bvals)
+
+            # for the current average value, get the first n_vals rows where column "b_value_original" is -10.
+            # get the index when "average" column is c_average_val and the b_value_original is -10
+            c_indices = df_log[
+                (df_log["average"] == c_average_val)
+                & (df_log["b_value_original"] == -10.0)
+            ].index.values
+
+            c_indices = c_indices[:n_vals]
+
+            # update the b_value_original column for these indices
+            df_log.loc[c_indices, "b_value_original"] = bvals
+
+            # increment the average value for the next bval file
+            c_average_val += 1
+            # check if the v_average_val exists in the dataframe
+            if c_average_val not in df_log["average"].values:
+                c_average_val = 0
+
+            pass
+
+    pass
 
     return df_log
 
@@ -1058,19 +1097,17 @@ def get_data_from_dicoms_and_export(
             )
         elif dicom_manufacturer == "philips":
 
-            # at the moment we cannot use this script for Philips STEAM data as we will not have
-            # access to the log file, we are currently investigating this issue
-            # throw error if so
-            assert (
-                sequence_option != "steam"
-            ), "Philips STEAM data not supported at the moment. Fix coming soon..."
+            # # at the moment we cannot use this script for Philips STEAM data as we will not have
+            # # access to the log file, we are currently investigating this issue
+            # # throw error if so
+            # assert (
+            #     sequence_option != "steam"
+            # ), "Philips STEAM data not supported at the moment. Fix coming soon..."
 
-            philips_export_csv_tables(
-                df_dicom, dicom_path, n_images_per_file, output_path
-            )
+            philips_export_csv_tables(dicom_path, output_path)
 
         print("=============================================")
-        print("csv file(s) exported successfully!")
+        print("csv file(s) with adjusted b-vals exported successfully!")
         print("=============================================")
         anon_pipeline["csv_files_created"] = "yes"
 
@@ -1123,7 +1160,6 @@ def get_data_from_dicoms_and_export(
 
 
 if __name__ == "__main__":
-    # arguments from command line
 
     # check if the number of arguments is correct
     assert len(sys.argv) == 5, "Incorrect number of arguments!"
