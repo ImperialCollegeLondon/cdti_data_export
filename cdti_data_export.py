@@ -881,18 +881,31 @@ def read_philips_steam_log(dicom_path: str, output_path: str) -> pd.DataFrame:
 
     # cleanup the dataframe
     # remove some irrelevant columns
-    df_log = df_log.drop(columns=[1, 2, 3, 4, 6, 7, 9, 11, 12])
+    df_log = df_log.drop(columns=[0, 1, 3, 4, 5, 6, 8, 9, 11, 13, 14])
     # rename the columns
     df_log = df_log.rename(
         columns={
-            0: "acquisition_time",
-            5: "average",
-            8: "diff_vector",
-            10: "TM",
-            13: "assumed_RR",
+            2: "acquisition_time",
+            7: "average",
+            10: "diff_vector",
+            12: "TM",
+            15: "assumed_RR",
         }
     )
+
+    # convert the acquisition date and time to datetime format
+    df_log["acquisition_time"] = pd.to_datetime(
+        df_log["acquisition_time"], format="%H:%M:%S.%f", errors="coerce"
+    )
+
+    # cleanup the semicolons
+    df_log.replace(";", "", regex=True, inplace=True)
+
     # create a new column with the b-value adjustment factor
+    # make the TM column numeric, if it is not already
+    df_log["TM"] = pd.to_numeric(df_log["TM"], errors="coerce")
+    # make the assumed_RR column numeric, if it is not already
+    df_log["assumed_RR"] = pd.to_numeric(df_log["assumed_RR"], errors="coerce")
     df_log["b_value_adjustment_factor"] = df_log["TM"] / df_log["assumed_RR"]
 
     # create a new column for the original b-values
@@ -904,25 +917,14 @@ def read_philips_steam_log(dicom_path: str, output_path: str) -> pd.DataFrame:
 
     # list the bval files from the output path
     bval_files = glob.glob(os.path.join(output_path, "*.bval"))
-    # create a dataframe with the bval_files
-    file_table = pd.DataFrame(bval_files, columns=["bval_file"])
-    file_table["average"] = file_table.apply(
-        lambda x: get_number(x["bval_file"], -2), axis=1
-    )
-    file_table["series_number"] = file_table.apply(
-        lambda x: get_number(x["bval_file"], -1), axis=1
-    )
-    # sort table by series number and then average
-    file_table = file_table.sort_values(by=["series_number", "average"]).reset_index(
-        drop=True
-    )
+    bval_files.sort()
+    json_files = glob.glob(os.path.join(output_path, "*.json"))
+    json_files.sort()
 
-    file_table["average"] = file_table["bval_file"].str.extract(r"AVG(\d+)")
-
-    file_table["series_number"] = re.findall(r"\d+", file_table["bval_file"][0])[-1]
-
-    # for each bval_file, read the b-values and add them to the dataframe
-    c_average_val = 0
+    # for each bval file, read the values, read the acquisition time
+    # and then added them to the correct rows from df_log
+    # TODO this is not working properly yet, the acquisition time is not changing with
+    # average on json files for different averages
     for idx, bval_file in enumerate(bval_files):
         # read the bval file
         with open(bval_file, "r") as f:
@@ -930,28 +932,28 @@ def read_philips_steam_log(dicom_path: str, output_path: str) -> pd.DataFrame:
             # convert to float
             bvals = [float(b) for b in bvals]
             n_vals = len(bvals)
+        # read the corresponding json file
+        json_file = bval_file.replace(".bval", ".json")
+        with open(json_file, "r") as f:
+            json_data = json.load(f)
+        # get the acquisition time from the json file
+        acquisition_time = json_data.get("AcquisitionTime", "None")
 
-            # for the current average value, get the first n_vals rows where column "b_value_original" is -10.
-            # get the index when "average" column is c_average_val and the b_value_original is -10
-            c_indices = df_log[
-                (df_log["average"] == c_average_val)
-                & (df_log["b_value_original"] == -10.0)
-            ].index.values
-
-            c_indices = c_indices[:n_vals]
-
-            # update the b_value_original column for these indices
-            df_log.loc[c_indices, "b_value_original"] = bvals
-
-            # increment the average value for the next bval file
-            c_average_val += 1
-            # check if the v_average_val exists in the dataframe
-            if c_average_val not in df_log["average"].values:
-                c_average_val = 0
-
-            pass
-
-    pass
+        # get the closest time in the df_log
+        # convert acquisition time to datetime
+        acquisition_time = pd.to_datetime(acquisition_time, format="%H:%M:%S.%f")
+        # find the closest time in the df_log
+        closest_idx = (df_log["acquisition_time"] - acquisition_time).abs().idxmin()
+        # get average number for this index
+        average_number = df_log.loc[closest_idx, "average"]
+        # get the indices where the average number is the same from closest_idx
+        all_indices = df_log[df_log["average"] == average_number].index.values
+        indices = [x for x in all_indices if x >= closest_idx]
+        # get indices for the n_vals
+        indices = indices[:n_vals]
+        # update the b_value_original column for these indices
+        for index in indices:
+            df_log.at[index, "b_value_original"] = bvals[indices.index(index)]
 
     return df_log
 
@@ -980,11 +982,11 @@ def get_data_from_dicoms_and_export(
     # create output folder if it does not exist
     if not os.path.exists(output_path):
         os.makedirs(output_path)
-    # # if it exists, clear previous files
-    # else:
-    #     files = glob.glob(os.path.join(output_path, "*"))
-    #     for f in files:
-    #         os.remove(f)
+    # if it exists, clear previous files
+    else:
+        files = glob.glob(os.path.join(output_path, "*"))
+        for f in files:
+            os.remove(f)
 
     # create a dictionary with a checklist of the anonymisation pipeline
     anon_pipeline = {
@@ -1007,6 +1009,56 @@ def get_data_from_dicoms_and_export(
     # check at least one nifti file was created
     nii_files = glob.glob(os.path.join(output_path, "*.nii"))
     assert len(nii_files) > 0, "No NIfTI files found in the folder!"
+
+    # if STEAM sequence, create csv tables with the adjusted b-values
+    if sequence_option == "steam":
+
+        # list all the DICOM files with extensions .dcm, .DCM,, .ima, or .IMA
+        included_extensions = ["dcm", "DCM", "IMA", "ima"]
+        dicom_files = [
+            os.path.join(dicom_path, fn)
+            for fn in os.listdir(dicom_path)
+            if any(fn.endswith(ext) for ext in included_extensions)
+        ]
+        dicom_files.sort()
+
+        assert len(dicom_files) > 0, "No DICOM files found in the folder!"
+
+        # collect header info from the first DICOM
+        header_info = pydicom.dcmread(open(dicom_files[0], "rb"))
+
+        # check version, number of images per DICOM and manufacturer
+        dicom_type, n_images_per_file, dicom_manufacturer = check_dicom_version(
+            header_info
+        )
+
+        # dictify dicom header
+        header_info = dictify(header_info)
+
+        # dataframe with DICOM info
+        df_dicom = dicom_info_table(
+            dicom_files, dicom_manufacturer, dicom_type, n_images_per_file
+        )
+
+        if dicom_manufacturer == "siemens":
+            siemens_export_csv_tables(
+                df_dicom, header_info, manual_config, n_images_per_file, output_path
+            )
+        elif dicom_manufacturer == "philips":
+
+            # # at the moment we cannot use this script for Philips STEAM data as we will not have
+            # # access to the log file, we are currently investigating this issue
+            # # throw error if so
+            # assert (
+            #     sequence_option != "steam"
+            # ), "Philips STEAM data not supported at the moment. Fix coming soon..."
+
+            philips_export_csv_tables(dicom_path, output_path)
+
+        print("=============================================")
+        print("csv file(s) with adjusted b-vals exported successfully!")
+        print("=============================================")
+        anon_pipeline["csv_files_created"] = "yes"
 
     # create bool option for anonymisation
     if anonymise_option == "yes":
@@ -1060,56 +1112,6 @@ def get_data_from_dicoms_and_export(
         print("nii files cleaned.")
         print("=============================================")
         anon_pipeline["anonymising_nii_files"] = "yes"
-
-    # if STEAM sequence, create csv tables with the adjusted b-values
-    if sequence_option == "steam":
-
-        # list all the DICOM files with extensions .dcm, .DCM,, .ima, or .IMA
-        included_extensions = ["dcm", "DCM", "IMA", "ima"]
-        dicom_files = [
-            os.path.join(dicom_path, fn)
-            for fn in os.listdir(dicom_path)
-            if any(fn.endswith(ext) for ext in included_extensions)
-        ]
-        dicom_files.sort()
-
-        assert len(dicom_files) > 0, "No DICOM files found in the folder!"
-
-        # collect header info from the first DICOM
-        header_info = pydicom.dcmread(open(dicom_files[0], "rb"))
-
-        # check version, number of images per DICOM and manufacturer
-        dicom_type, n_images_per_file, dicom_manufacturer = check_dicom_version(
-            header_info
-        )
-
-        # dictify dicom header
-        header_info = dictify(header_info)
-
-        # dataframe with DICOM info
-        df_dicom = dicom_info_table(
-            dicom_files, dicom_manufacturer, dicom_type, n_images_per_file
-        )
-
-        if dicom_manufacturer == "siemens":
-            siemens_export_csv_tables(
-                df_dicom, header_info, manual_config, n_images_per_file, output_path
-            )
-        elif dicom_manufacturer == "philips":
-
-            # # at the moment we cannot use this script for Philips STEAM data as we will not have
-            # # access to the log file, we are currently investigating this issue
-            # # throw error if so
-            # assert (
-            #     sequence_option != "steam"
-            # ), "Philips STEAM data not supported at the moment. Fix coming soon..."
-
-            philips_export_csv_tables(dicom_path, output_path)
-
-        print("=============================================")
-        print("csv file(s) with adjusted b-vals exported successfully!")
-        print("=============================================")
-        anon_pipeline["csv_files_created"] = "yes"
 
     if anonymise_option:
         # rename all files to avoid potential identifiers
@@ -1179,8 +1181,8 @@ if __name__ == "__main__":
     assert sequence_option in ["se", "steam"], "Sequence option not recognised!"
     assert anonymise_option in ["yes", "no"], "Anonymise option not recognised!"
     # check output argument folder doesn't exist or is empty
-    if os.path.exists(output_path):
-        assert len(os.listdir(output_path)) == 0, "Output folder is not empty!"
+    # if os.path.exists(output_path):
+    #     assert len(os.listdir(output_path)) == 0, "Output folder is not empty!"
 
     # print the input arguments
     print("=============================================")
