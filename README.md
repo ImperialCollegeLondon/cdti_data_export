@@ -80,9 +80,18 @@ pip install -r requirements.txt
 
 ---
 
-## Running the Script
+## Running the Scripts
 
-You will need the full paths for the input and output folders:
+There are two scripts available in this repository:
+
+- **Single folder mode** `cdti_data_export.py`: Script for exporting DICOM data to NIFTI format in one folder.
+- **Multiple folders mode** `batch_process_multiple_folders.py`: Batch processing script for multiple folders, this script calls `cdti_data_export.py` for each folder in a pre-determined folder structure.
+
+---
+
+### Single Folder Mode
+
+You will need these arguments to run the script:
 
 - `<input_folder>`: Folder containing the DICOM files (all files should be at the root, not in subfolders).
 - `<output_folder>`: Folder where the NIFTI files will be created.
@@ -98,10 +107,11 @@ You will need the full paths for the input and output folders:
 > ```
 
 > [!NOTE]
-> For Philips STEAM data, the `<input_folder>` should also include the scan log file (`*.csv`).  
-> TODO: Ask Irvin Teh for details on obtaining this log file.
+> For Philips STEAM data. 🚧 WORK IN PROGRESS 🚧
+>
+> Currently developing a way to create the adjusted b-value tables...
 
-Run the script:
+Run the script (examples):
 
 ```bash
 # To anonymise SE data
@@ -113,9 +123,105 @@ python cdti_data_export.py <input_folder> <output_folder> steam yes
 
 ---
 
+### Multiple Folders Mode
+
+This script processes multiple folders in a pre-determined structure.
+The folders must be in a rigid structure as follows:
+
+```bash
+.
+└── group_name
+    └── dicom
+        ├── SE_full_fov
+        │   ├── subject_01
+        │   │   ├── scan_01
+        │   │   │   └── 1.dcm...
+        │   │   └── scan_02
+        │   │       └── 1.dcm...
+        │   ├── subject_02
+        │   │   ├── scan_01
+        │   │   │   └── 1.dcm...
+        │   │   └── scan_02
+        │   │       └── 1.dcm...
+        │   └── subject_03
+        │       ├── scan_01
+        │       │   └── 1.dcm...
+        │       └── scan_02
+        │           └── 1.dcm...
+        ├── SE_full_fov_slice_tracking
+        │   ├── subject_01
+        │   │   ├── scan_01
+        │   │   │   └── 1.dcm...
+        │   │   └── scan_02
+        │   │       └── 1.dcm...
+        │   ├── subject_02
+        │   │   ├── scan_01
+        │   │   │   └── 1.dcm...
+        │   │   └── scan_02
+        │   │       └── 1.dcm...
+        │   └── subject_03
+        │       ├── scan_01
+        │       │   └── 1.dcm...
+        │       └── scan_02
+        │           └── 1.dcm...
+        ├── SE_reduced_fov
+        │   ├── subject_01
+        │   │   ├── scan_01
+        │   │   │   └── 1.dcm...
+        │   │   └── scan_02
+        │   │       └── 1.dcm...
+        │   ├── subject_02
+        │   │   ├── scan_01
+        │   │   │   └── 1.dcm...
+        │   │   └── scan_02
+        │   │       └── 1.dcm...
+        │   └── subject_03
+        │       ├── scan_01
+        │       │   └── 1.dcm...
+        │       └── scan_02
+        │           └── 1.dcm...
+        └── STEAM
+            ├── subject_01
+            │   ├── scan_01
+            │   │   └── 1.dcm...
+            │   └── scan_02
+            │       └── 1.dcm...
+            ├── subject_02
+            │   ├── scan_01
+            │   │   └── 1.dcm...
+            │   └── scan_02
+            │       └── 1.dcm...
+            └── subject_03
+                ├── scan_01
+                │   └── 1.dcm...
+                └── scan_02
+                    └── 1.dcm...
+```
+
+You don't need all the sequence folders to be present, but they must contain the capitalised string `SE` or `STEAM` for identification.
+
+You also don't need to have repeat scans per subject, but you must have the same levels of hierarchy.
+
+The DICOM files should be inside level 5 of the hierarchy, as shown above. Not in further subfolders.
+
+You will need the following arguments to run the script:
+
+- `<root_folder>`: full path for the root folder that contains the `group_name` subfolder.
+- `anonymisation`: `yes` or `no` (generally, use `yes`).
+- `overwrite`: `yes` or `no` (if you want to overwrite potentially existing NIFTI files, use `yes`).
+
+Run the script example:
+
+```bash
+# To anonymise multiple folders and overwrite existing files
+python batch_process_multiple_folders.py <root_folder> yes yes
+```
+
+---
+
 ## Output
 
-If the script runs successfully, `<output_folder>` will contain:
+If the scripts runs successfully, the nifti data folder(s) should contain:
 
 - NIFTI files: `*.nii`
 - b-values: `*.bval`

@@ -79,7 +79,7 @@ from cdti_data_export import get_data_from_dicoms_and_export
 # check if the number of arguments is correct
 assert len(sys.argv) == 4, "Incorrect number of arguments!"
 
-# path to where to store nii and other files
+# path to group name
 group_name_path = sys.argv[1]
 
 # anonymise flag
@@ -169,28 +169,20 @@ for sequence_folder in sequence_folders:
                     "Expected 'SE' or 'STEAM' in the folder name."
                 )
 
+            print("==================================================================")
+            print("==================================================================")
+            print(
+                f"Processing: \n{scan_folder_path} \nwith sequence {sequence_substring} "
+                f"and anonymise option {anonymise_option} and overwrite option {overwrite_option}"
+            )
+            print("==================================================================")
+
             # check if the nifti equivalent folder already contains files
             nii_folder_path = os.path.join(
                 group_name_path, "nifti", sequence_folder, subject_folder, scan_folder
             )
             if os.path.exists(nii_folder_path) and len(os.listdir(nii_folder_path)) > 0:
                 if overwrite_option:
-                    print(
-                        "=================================================================="
-                    )
-                    print(
-                        "=================================================================="
-                    )
-                    print(
-                        f"Processing: \n{scan_folder_path} \nwith sequence {sequence_substring} "
-                        f"and anonymise option {anonymise_option}"
-                    )
-                    print(
-                        "=================================================================="
-                    )
-                    print(
-                        "=================================================================="
-                    )
                     print(f"Overwriting existing files in \n{nii_folder_path}")
                 else:
                     print(
