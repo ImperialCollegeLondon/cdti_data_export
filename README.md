@@ -198,7 +198,7 @@ The folders must be in a rigid structure as follows:
                     └── 1.dcm...
 ```
 
-You don't need all the sequence folders to be present, but they must contain the capitalised string `SE` or `STEAM` for identification.
+You don't need all the sequence folders to be present, but the folder names must start with the string `SE` or `STEAM` for identification of the sequence type.
 
 You also don't need to have repeat scans per subject, but you must have the same levels of hierarchy.
 
@@ -221,7 +221,7 @@ python batch_process_multiple_folders.py <root_folder> yes yes
 
 ## Output
 
-If the scripts runs successfully, the nifti data folder(s) should contain:
+If the scripts run successfully, the NIFTI data folder(s) should contain:
 
 - NIFTI files: `*.nii`
 - b-values: `*.bval`
