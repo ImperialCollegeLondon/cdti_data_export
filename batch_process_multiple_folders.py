@@ -77,8 +77,12 @@ from cdti_data_export import get_data_from_dicoms_and_export
 
 
 # check if the number of arguments is correct
-assert len(sys.argv) == 4, "Incorrect number of arguments!"
-
+if len(sys.argv) != 4:
+    sys.stderr.write("Error: Incorrect number of arguments!\n")
+    sys.stderr.write("Usage: python batch_process_multiple_folders.py <group_name_path> <anonymise_option> <overwrite_option>\n")
+    sys.stderr.write("  <anonymise_option>: 'yes' or 'no'\n")
+    sys.stderr.write("  <overwrite_option>: 'yes' or 'no'\n")
+    sys.exit(1)
 # path to group name
 group_name_path = sys.argv[1]
 
