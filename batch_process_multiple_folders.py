@@ -163,14 +163,15 @@ for sequence_folder in sequence_folders:
 
             # get sequence substring
             sequence_substring = ""
-            if "SE" in sequence_folder or "se" in sequence_folder:
+            normalized_sequence_folder = sequence_folder.lower()
+            if normalized_sequence_folder.startswith("se"):
                 sequence_substring = "se"
-            elif "STEAM" in sequence_folder or "steam" in sequence_folder:
+            elif normalized_sequence_folder.startswith("steam"):
                 sequence_substring = "steam"
             else:
                 raise ValueError(
                     f"Unknown sequence from folder name: {sequence_folder}. "
-                    "Expected 'SE' or 'STEAM' in the folder name."
+                    "Expected folder name to start with 'SE' or 'STEAM'."
                 )
 
             print("==================================================================")
