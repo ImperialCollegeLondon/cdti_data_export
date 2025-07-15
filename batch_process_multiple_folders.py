@@ -198,11 +198,16 @@ for sequence_folder in sequence_folders:
 
             # run python script to convert DICOMs to NIfTI
             # ==========================================================
-            # Manual configuration of some parameters
-            # if everything else fails, we can use these values
-            manual_config = {"assumed_rr_interval": 1000.0, "calculated_real_b0": 30}
+# Manual configuration of some parameters
+# if everything else fails, we can use these values
+manual_config = {"assumed_rr_interval": 1000.0, "calculated_real_b0": 30}
 
-            get_data_from_dicoms_and_export(
+# loop over each scan folder
+for scan_folder in scan_folders:
+    scan_folder_path = os.path.join(subject_folder_path, scan_folder)
+
+    # check if the path exists
+    assert os.path.exists(
                 dicom_path=scan_folder_path,
                 output_path=nii_folder_path,
                 sequence_option=sequence_substring,
