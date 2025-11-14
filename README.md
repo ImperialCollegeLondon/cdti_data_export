@@ -230,4 +230,6 @@ If the scripts run successfully, the NIFTI data folder(s) should contain:
 - Adjusted b-value tables: `*.csv` (STEAM sequences only)
 - YAML file with anonymisation information: `anon_pipeline.yml`
 
+Please note, the data in the NIFTI folders will contain an extra sub-folder named `diffusion_images` where the data files are located, this is because INDI will need this subfolder to locate the scans when batch analysing.
+
 **Please double-check that no private data (including acquisition date and time) is present in the output files.**

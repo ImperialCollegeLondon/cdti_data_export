@@ -79,7 +79,9 @@ from cdti_data_export import get_data_from_dicoms_and_export
 # check if the number of arguments is correct
 if len(sys.argv) != 4:
     sys.stderr.write("Error: Incorrect number of arguments!\n")
-    sys.stderr.write("Usage: python batch_process_multiple_folders.py <group_name_path> <anonymise_option> <overwrite_option>\n")
+    sys.stderr.write(
+        "Usage: python batch_process_multiple_folders.py <group_name_path> <anonymise_option> <overwrite_option>\n"
+    )
     sys.stderr.write("  <anonymise_option>: 'yes' or 'no'\n")
     sys.stderr.write("  <overwrite_option>: 'yes' or 'no'\n")
     sys.exit(1)
@@ -186,6 +188,10 @@ for sequence_folder in sequence_folders:
             nii_folder_path = os.path.join(
                 group_name_path, "nifti", sequence_folder, subject_folder, scan_folder
             )
+
+            # add the exta "diffusion_images" subfolder
+            nii_folder_path = os.path.join(nii_folder_path, "diffusion_images")
+
             if os.path.exists(nii_folder_path) and len(os.listdir(nii_folder_path)) > 0:
                 if overwrite_option:
                     print(f"Overwriting existing files in \n{nii_folder_path}")
