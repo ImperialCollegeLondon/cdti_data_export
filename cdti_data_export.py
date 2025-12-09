@@ -1118,7 +1118,9 @@ def get_data_from_dicoms_and_export(
     with open(anon_pipeline_file, "w") as f:
         yaml.dump(anon_pipeline, f, default_flow_style=False)
     print("=============================================")
-    print("Anonymisation pipeline saved")
+    print("Anonymisation pipeline saved and end of anonymisation pipeline.")
+    print("=============================================")
+    print("=============================================")
     print("=============================================")
 
 
