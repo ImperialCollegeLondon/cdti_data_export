@@ -43,11 +43,18 @@ def get_nominal_interval(
 
     """
     if dicom_type == 2:
-        val = float(
-            c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
-                "CardiacSynchronizationSequence"
-            ][0]["RRIntervalTimeNominal"]
-        )
+        val = c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
+            "CardiacSynchronizationSequence"
+        ][0]["RRIntervalTimeNominal"]
+
+        if val == None:
+            val = 0.0
+        else:
+            val = float(
+                c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
+                    "CardiacSynchronizationSequence"
+                ][0]["RRIntervalTimeNominal"]
+            )
         return val
 
     elif dicom_type == 1:
@@ -252,6 +259,65 @@ def get_b_value(
             return c_dicom_header["DiffusionBValue"]
 
 
+def get_diff_dir(
+    c_dicom_header: dict, dicom_type: int, dicom_manufacturer: int, frame_idx: int
+) -> float:
+    """
+    Get diffusion direction from a dict with the DICOM header.
+
+    Parameters
+    ----------
+    c_dicom_header
+    dicom_type
+    dicom_manufacturer
+    frame_idx
+
+    Returns
+    -------
+    b_value
+
+    """
+    if dicom_type == 2:
+        if (
+            "DiffusionGradientDirectionSequence"
+            in c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
+                "MRDiffusionSequence"
+            ][0].keys()
+        ):
+            if (
+                "DiffusionGradientOrientation"
+                in c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
+                    "MRDiffusionSequence"
+                ][0]["DiffusionGradientDirectionSequence"][0].keys()
+            ):
+                val = c_dicom_header["PerFrameFunctionalGroupsSequence"][frame_idx][
+                    "MRDiffusionSequence"
+                ][0]["DiffusionGradientDirectionSequence"][0][
+                    "DiffusionGradientOrientation"
+                ]
+                return tuple([float(i) for i in val])
+            else:
+                return (0.0, 0.0, 0.0)
+        else:
+            return (0.0, 0.0, 0.0)
+
+    elif dicom_type == 1:
+        if dicom_manufacturer == "siemens":
+            if "DiffusionGradientDirection" in c_dicom_header.keys():
+                return tuple(
+                    [float(i) for i in c_dicom_header["DiffusionGradientDirection"]]
+                )
+            else:
+                return (0.0, 0.0, 0.0)
+        elif dicom_manufacturer == "philips":
+            if "DiffusionGradientOrientation" in c_dicom_header.keys():
+                return tuple(
+                    [float(i) for i in c_dicom_header["DiffusionGradientOrientation"]]
+                )
+            else:
+                return (0.0, 0.0, 0.0)
+
+
 def get_image_position(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> Tuple:
     """
     Get the image position patient info from the DICOM header
@@ -280,9 +346,36 @@ def get_image_position(c_dicom_header: dict, dicom_type: int, frame_idx: int) ->
         return val
 
     elif dicom_type == 1:
-        val = tuple([float(i) for i in c_dicom_header["ImagePositionPatient"]])
+        if "ImagePositionPatient" in c_dicom_header:
+            val = tuple([float(i) for i in c_dicom_header["ImagePositionPatient"]])
+        else:
+            val = (0.0, 0.0, 0.0)
 
         return val
+
+
+def get_image_type(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> Tuple:
+    """
+    Get image type from the DICOM header
+
+    Parameters
+    ----------
+    c_dicom_header
+    dicom_type
+    frame_idx
+
+    Returns
+    -------
+    image position patient
+
+    """
+    if dicom_type == 2:
+        val = c_dicom_header["ImageType"][0]
+
+    elif dicom_type == 1:
+        val = c_dicom_header["ImageType"][0]
+
+    return val
 
 
 def dictify(ds: pydicom.dataset.Dataset) -> dict:
@@ -781,8 +874,14 @@ def dicom_info_table(
                     get_b_value(
                         c_dicom_header, dicom_type, dicom_manufacturer, frame_idx
                     ),
+                    # b-value or zero if not a field
+                    get_diff_dir(
+                        c_dicom_header, dicom_type, dicom_manufacturer, frame_idx
+                    ),
                     # image position
                     get_image_position(c_dicom_header, dicom_type, frame_idx),
+                    # get image type
+                    get_image_type(c_dicom_header, dicom_type, frame_idx),
                 )
             )
     # column labels for the dataframe and for the csv file
@@ -796,7 +895,9 @@ def dicom_info_table(
         "series_number",
         "nii_file_suffix",
         "b_value",
+        "diffusion_direction",
         "image_position",
+        "image_type",
     ]
     # create a dataframe from the list
     df_dicom = pd.DataFrame(
@@ -957,6 +1058,55 @@ def get_data_from_dicoms_and_export(
         "renaming_csv_files": "no",
     }
 
+    # before running dcm2niix, build dicom database and remove any dicoms that are derived maps
+    header_info, n_images_per_file, dicom_manufacturer, df_dicom = dicom_database(
+        dicom_path
+    )
+
+    # create folder for derived maps dicoms
+    folder_one_down = os.path.dirname(dicom_path)
+    derived_maps_folder = os.path.join(folder_one_down, "derived_maps_dicoms")
+    if not os.path.exists(derived_maps_folder):
+        os.makedirs(derived_maps_folder)
+    # iterate over the dicom database and move any derived maps dicoms to the new folder
+    for idx in range(len(df_dicom)):
+        c_image_type = df_dicom.loc[idx, "image_type"]
+        c_file_name = df_dicom.loc[idx, "file_name"]
+        if "DERIVED" in c_image_type:
+            # check file hasn't already been moved
+            if os.path.exists(os.path.join(dicom_path, c_file_name)):
+                # move the dicom to the derived maps folder
+                os.rename(
+                    os.path.join(dicom_path, c_file_name),
+                    os.path.join(derived_maps_folder, c_file_name),
+                )
+
+    # we also need to remove entries from the df_dicom that are b0 images but the b-value
+    # is not 0.0 (some manufacturers store b0 images with a small b-value >0)
+    if dicom_manufacturer == "siemens" and sequence_option == "steam":
+        # create folder for derived maps dicoms
+        b0s_data_folder = os.path.join(folder_one_down, "b0s_dicoms")
+        if not os.path.exists(b0s_data_folder):
+            os.makedirs(b0s_data_folder)
+        # loop through the entries and remove any b0 images with b-value = 50
+        # this is given by the direction [0.58, 0.58, 0.58] in Siemens STEAM data
+        # this only happens for the STEAM phantom protocol
+        for idx in range(len(df_dicom)):
+            c_file_name = df_dicom.loc[idx, "file_name"]
+            c_b_value = df_dicom.loc[idx, "b_value"]
+            c_diff_dir = df_dicom.loc[idx, "diffusion_direction"]
+            # round up direction to the second decimal
+            c_diff_dir = list(c_diff_dir)
+            c_diff_dir = [np.abs(np.round(i, 2)) for i in c_diff_dir]
+            if c_diff_dir == [0.58, 0.58, 0.58] and c_b_value == 50:
+                # check file hasn't already been moved
+                if os.path.exists(os.path.join(dicom_path, c_file_name)):
+                    # move the dicom to the b0s_data_folder
+                    os.rename(
+                        os.path.join(dicom_path, c_file_name),
+                        os.path.join(b0s_data_folder, c_file_name),
+                    )
+
     # run the dcm2niix command
     run_command = "dcm2niix -ba y -f %p_%s -o " + output_path + " " + dicom_path
     os.system(run_command)
@@ -1026,30 +1176,8 @@ def get_data_from_dicoms_and_export(
     if sequence_option == "steam":
 
         # list all the DICOM files with extensions .dcm, .DCM,, .ima, or .IMA
-        included_extensions = ["dcm", "DCM", "IMA", "ima"]
-        dicom_files = [
-            os.path.join(dicom_path, fn)
-            for fn in os.listdir(dicom_path)
-            if any(fn.endswith(ext) for ext in included_extensions)
-        ]
-        dicom_files.sort()
-
-        assert len(dicom_files) > 0, "No DICOM files found in the folder!"
-
-        # collect header info from the first DICOM
-        header_info = pydicom.dcmread(open(dicom_files[0], "rb"))
-
-        # check version, number of images per DICOM and manufacturer
-        dicom_type, n_images_per_file, dicom_manufacturer = check_dicom_version(
-            header_info
-        )
-
-        # dictify dicom header
-        header_info = dictify(header_info)
-
-        # dataframe with DICOM info
-        df_dicom = dicom_info_table(
-            dicom_files, dicom_manufacturer, dicom_type, n_images_per_file
+        header_info, n_images_per_file, dicom_manufacturer, df_dicom = dicom_database(
+            dicom_path
         )
 
         if dicom_manufacturer == "siemens":
@@ -1122,6 +1250,34 @@ def get_data_from_dicoms_and_export(
     print("=============================================")
     print("=============================================")
     print("=============================================")
+
+
+def dicom_database(dicom_path):
+    included_extensions = ["dcm", "DCM", "IMA", "ima"]
+    dicom_files = [
+        os.path.join(dicom_path, fn)
+        for fn in os.listdir(dicom_path)
+        if any(fn.endswith(ext) for ext in included_extensions)
+    ]
+    dicom_files.sort()
+
+    assert len(dicom_files) > 0, "No DICOM files found in the folder!"
+
+    # collect header info from the first DICOM
+    header_info = pydicom.dcmread(open(dicom_files[0], "rb"))
+
+    # check version, number of images per DICOM and manufacturer
+    dicom_type, n_images_per_file, dicom_manufacturer = check_dicom_version(header_info)
+
+    # dictify dicom header
+    header_info = dictify(header_info)
+
+    # dataframe with DICOM info
+    df_dicom = dicom_info_table(
+        dicom_files, dicom_manufacturer, dicom_type, n_images_per_file
+    )
+
+    return header_info, n_images_per_file, dicom_manufacturer, df_dicom
 
 
 if __name__ == "__main__":
