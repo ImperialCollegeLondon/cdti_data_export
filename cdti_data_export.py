@@ -194,7 +194,7 @@ def get_nii_file_suffix(c_dicom_header: dict, dicom_type: int, frame_idx: int) -
     """
     if dicom_type == 2:
         suffix = (
-            c_dicom_header["ProtocolName"]
+            "signet"
             + "_"
             # + c_dicom_header["SeriesDate"]
             # + str(round((float(c_dicom_header["StudyTime"]))))
@@ -206,7 +206,7 @@ def get_nii_file_suffix(c_dicom_header: dict, dicom_type: int, frame_idx: int) -
 
     elif dicom_type == 1:
         suffix = (
-            c_dicom_header["ProtocolName"]
+            "signet"
             + "_"
             # + c_dicom_header["SeriesDate"]
             # + str(round((float(c_dicom_header["StudyTime"]))))
@@ -1108,7 +1108,7 @@ def get_data_from_dicoms_and_export(
                     )
 
     # run the dcm2niix command
-    run_command = "dcm2niix -ba y -f %p_%s -o " + output_path + " " + dicom_path
+    run_command = "dcm2niix -ba y -f signet_%s -o " + output_path + " " + dicom_path
     os.system(run_command)
     print("=============================================")
     print("dcm2niix command done.")

@@ -149,6 +149,12 @@ for sequence_folder in sequence_folders:
             if os.path.isdir(os.path.join(subject_folder_path, f))
         ]
         scan_folders.sort()
+
+        # ignore folders named: "b0s_dicoms" and "derived_maps_dicoms"
+        scan_folders = [
+            f for f in scan_folders if f not in ["b0s_dicoms", "derived_maps_dicoms"]
+        ]
+
         # loop over each scan folder
         for scan_folder in scan_folders:
             scan_folder_path = os.path.join(subject_folder_path, scan_folder)
