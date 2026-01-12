@@ -567,7 +567,7 @@ def adjust_b_val_and_dir(
     data = estimate_rr_interval(data)
 
     # read dicom comments to get assumed RR interval and b0 value
-    if info["ImageComments"]:
+    if "ImageComments" in info:
         print("Dicom header comment found: " + info["ImageComments"])
         # get all numbers from comment field
         m = re.findall(r"[-+]?(?:\d*\.*\d+)", info["ImageComments"])
@@ -1315,7 +1315,7 @@ if __name__ == "__main__":
     # ==========================================================
     # Manual configuration of some parameters
     # if everything else fails, we can use these values
-    manual_config = {"assumed_rr_interval": 1000.0, "calculated_real_b0": 30}
+    manual_config = {"assumed_rr_interval": 1000.0, "calculated_real_b0": 35.19}
 
     # run main function
     get_data_from_dicoms_and_export(
