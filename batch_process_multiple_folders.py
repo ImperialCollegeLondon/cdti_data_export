@@ -201,6 +201,11 @@ for sequence_folder in sequence_folders:
             if os.path.exists(nii_folder_path) and len(os.listdir(nii_folder_path)) > 0:
                 if overwrite_option:
                     print(f"Overwriting existing files in \n{nii_folder_path}")
+                    # delete all files in the nii_folder_path
+                    for f in os.listdir(nii_folder_path):
+                        f_path = os.path.join(nii_folder_path, f)
+                        if os.path.isfile(f_path):
+                            os.remove(f_path)
                 else:
                     print(
                         f"Skipping \n{nii_folder_path} \nas it already contains files. "
