@@ -177,6 +177,26 @@ def get_series_number(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> 
         return c_dicom_header["SeriesNumber"]
 
 
+def get_series_description(
+    c_dicom_header: dict, dicom_type: int, frame_idx: int
+) -> str:
+    """
+    Get series description
+
+    Parameters
+    ----------
+    c_dicom_header
+    dicom_type
+    frame_idx
+
+    Returns
+    -------
+    Series description string
+
+    """
+    return c_dicom_header["SeriesDescription"]
+
+
 def get_nii_file_suffix(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
     """
     Build the suffix nii file name corresponding to the current DICOM image
@@ -318,6 +338,39 @@ def get_diff_dir(
                 return (0.0, 0.0, 0.0)
 
 
+def get_diff_dir_philips_log(
+    diff_dir: Tuple, rotation_matrix: np.ndarray, manufacturer: str
+) -> Tuple:
+    """
+    Get the diffusion direction rotated by the rotation matrix
+
+    Parameters
+    ----------
+    diff_dir: tuple with the diffusion direction
+    rotation_matrix: 3x3 rotation matrix
+
+    Returns
+    -------
+    Rotated diffusion direction
+
+    """
+    if manufacturer != "philips":
+        None
+    else:
+        if diff_dir == (0.0, 0.0, 0.0):
+            return diff_dir
+        else:
+            rotated_diff_dir = np.matmul(np.array(diff_dir), rotation_matrix)
+            # round values to 3 decimal places
+            rotated_diff_dir = np.round(rotated_diff_dir, 5)
+            rotated_diff_dir = [
+                rotated_diff_dir[1],
+                -rotated_diff_dir[0],
+                rotated_diff_dir[2],
+            ]
+            return tuple(rotated_diff_dir)
+
+
 def get_image_position(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> Tuple:
     """
     Get the image position patient info from the DICOM header
@@ -378,20 +431,20 @@ def get_image_type(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> Tup
     return val
 
 
-def dictify(ds: pydicom.dataset.Dataset) -> dict:
-    """
-    Turn a pydicom Dataset into a dict with keys derived from the Element tags.
+# get DICOM header fields
+def dictify(ds: pydicom.dataset.Dataset, manufacturer: str, dicom_type: str) -> dict:
+    """Turn a pydicom Dataset into a dict with keys derived from the Element tags.
     Private info is not collected, because we cannot access it with the keyword.
     So we need to manually fish the diffusion information in the old DICOMs.
 
-    Parameters
-    ----------
-    ds : pydicom.dataset.Dataset
-        The Dataset to dictify
+    Args:
+        ds: The Dataset to dictify
+        manufacturer: Manufacturer of the DICOM files (siemens, philips, ge, uih)
+        dicom_type: DICOM type (legacy or enhanced)
 
-    Returns
-    -------
-    DICOM header as a dict
+    Returns:
+        output: A dictionary with the DICOM header information
+
     """
 
     output = dict()
@@ -400,13 +453,58 @@ def dictify(ds: pydicom.dataset.Dataset) -> dict:
         if elem.VR != "SQ":
             output[elem.keyword] = elem.value
         else:
-            output[elem.keyword] = [dictify(item) for item in elem]
+            output[elem.keyword] = [
+                dictify(item, manufacturer, dicom_type) for item in elem
+            ]
 
-    # add manually private diffusion fields if they exist
-    if [0x0019, 0x100C] in ds:
-        output["DiffusionBValue"] = ds[0x0019, 0x100C].value
-    if [0x0019, 0x100E] in ds:
-        output["DiffusionGradientDirection"] = ds[0x0019, 0x100E].value
+    # add manually private diffusion fields if they exist for legacy DICOMs
+    if dicom_type == "legacy":
+        if manufacturer == "siemens":
+            if [0x0019, 0x100C] in ds:
+                output["b_value"] = ds[0x0019, 0x100C].value
+            if [0x0019, 0x100E] in ds:
+                output["diffusion_direction"] = ds[0x0019, 0x100E].value
+
+        if manufacturer == "philips":
+            if [0x0018, 0x9087] in ds:
+                output["b_value"] = ds[0x0018, 0x9087].value
+            if [0x0018, 0x9089] in ds:
+                output["diffusion_direction"] = ds[0x0018, 0x9089].value
+
+        if manufacturer == "ge":
+            if [0x0018, 0x9087] in ds:
+                output["b_value"] = ds[0x0018, 0x9087].value
+            if (
+                [0x0019, 0x10BB] in ds
+                and [0x0019, 0x10BC] in ds
+                and [0x0019, 0x10BD] in ds
+            ):
+                output["diffusion_direction"] = [
+                    ds[0x0019, 0x10BB].value,
+                    ds[0x0019, 0x10BC].value,
+                    ds[0x0019, 0x10BD].value,
+                ]
+                # convert list of strings to list of floats
+                output["diffusion_direction"] = [
+                    float(i) for i in output["diffusion_direction"]
+                ]
+
+        if manufacturer == "uih":
+            # I was told by UIH team that the real DiffusionBValue is in the following tag [0x0065, 0x1009].
+            # There is also the tag DiffusionBValue [0x0018, 0x9087], but this one seems to have approximate
+            # b-values. So I am using the first one:
+            if [0x0065, 0x1009] in ds:
+                output["b_value"] = ds[0x0065, 0x1009].value
+            if [0x0018, 0x9089] in ds:
+                output["diffusion_direction"] = ds[0x0018, 0x9089].value
+
+            # I was also told by UIH team that the DiffusionGradientDirection is in the following
+            # tag [0x0065, 0x1037] and the directions are in the image coordinate system.
+            # But the header already contains another field called DiffusionGradientOrientation,
+            # so I am using that one instead, which seems to be in the magnetic coordinate system.
+            # if [0x0065, 0x1037] in ds:
+            #     output["DiffusionGradientDirection"] = ds[0x0065, 0x1037].value
+
     return output
 
 
@@ -628,7 +726,9 @@ def adjust_b_val_and_dir(
     return data
 
 
-def check_dicom_version(header_info: pydicom.dataset.Dataset) -> [int, int, str]:
+def check_dicom_version_and_manufacturer(
+    header_info: pydicom.dataset.Dataset,
+) -> [int, int, str]:
     """
     Check the DICOM version, number of images per DICOM and manufacturer
 
@@ -644,10 +744,10 @@ def check_dicom_version(header_info: pydicom.dataset.Dataset) -> [int, int, str]
 
     """
 
-    dicom_type = 0
+    dicom_type = None
     if "PerFrameFunctionalGroupsSequence" in header_info:
         dicom_type = 2
-        print("DICOM type: Modern")
+        print("DICOM type: Enhanced")
         # How many images in one file?
         n_images_per_file = len(header_info.PerFrameFunctionalGroupsSequence)
         print("Number of images per DICOM: " + str(n_images_per_file))
@@ -655,33 +755,29 @@ def check_dicom_version(header_info: pydicom.dataset.Dataset) -> [int, int, str]
         dicom_type = 1
         print("DICOM type: Legacy")
         n_images_per_file = 1
+        print("Number of images per DICOM: " + str(n_images_per_file))
 
     # check manufacturer
     if "Manufacturer" in header_info:
-        if (
-            header_info.Manufacturer == "Siemens Healthineers"
-            or header_info.Manufacturer == "Siemens"
-            or header_info.Manufacturer == "SIEMENS"
-        ):
-            print("Manufacturer: SIEMENS")
-            dicom_manufacturer = "siemens"
-        elif (
-            header_info.Manufacturer == "Philips Medical Systems"
-            or header_info.Manufacturer == "Philips"
-        ):
+        val = header_info["Manufacturer"].value
+        if val == "Siemens Healthineers" or val == "Siemens" or val == "SIEMENS":
+            manufacturer = "siemens"
+            print("Manufacturer: Siemens")
+        elif val == "Philips Medical Systems" or val == "Philips":
+            manufacturer = "philips"
             print("Manufacturer: Philips")
-            dicom_manufacturer = "philips"
-        elif header_info.Manufacturer == "GE MEDICAL SYSTEMS":
+        elif val == "GE MEDICAL SYSTEMS" or val == "GE":
+            manufacturer = "ge"
             print("Manufacturer: GE")
-            sys.exit("GE DICOMs not supported yet.")
+        elif val == "UIH" or val == "United Imaging Healthcare":
+            manufacturer = "uih"
+            print("Manufacturer: United Imaging Healthcare")
         else:
-            print("Manufacturer: " + header_info.Manufacturer)
-            sys.exit("Manufacturer not supported.")
+            raise ValueError("Manufacturer not supported.")
     else:
-        print("Manufacturer: None")
-        sys.exit("Manufacturer not supported.")
+        raise ValueError("Manufacturer field not found in header.")
 
-    return dicom_type, n_images_per_file, dicom_manufacturer
+    return dicom_type, n_images_per_file, manufacturer
 
 
 def export_csv_files(df: pd.DataFrame, output_path: str):
@@ -720,6 +816,125 @@ def export_csv_files(df: pd.DataFrame, output_path: str):
             columns=column_labels,
             index=False,
         )
+
+
+def export_csv_files_philips(df: pd.DataFrame, df_log: pd.DataFrame, output_path: str):
+    """
+    Export the dataframe to CSV files.
+
+    Parameters
+    ----------
+    df
+    df_log
+    output_path
+
+    Returns
+    -------
+
+    """
+
+    column_labels = [
+        "b_value",
+        "frame_dim_idx",
+        "slice_dim_idx",
+        "nominal_interval",
+    ]
+
+    # get series numbers from the log table
+    series_numbers = df_log["average_number"].unique().tolist()
+
+    # create a new column in the df with the values from the series_description column
+    df["series_number_matching_log"] = df["series_description"]
+    # in this new column remove all non-numeric characters and convert to int
+    df["series_number_matching_log"] = (
+        df["series_number_matching_log"].str.replace("\\D", "", regex=True).astype(int)
+    )
+    # drop the number by one, in order to match the average number in the log table
+    df["series_number_matching_log"] = df["series_number_matching_log"] - 1
+
+    # loop over the series numbers and export the corresponding csv files
+    for series in series_numbers:
+        c_table = df[df["series_number_matching_log"] == series]
+        c_table_log = df_log[df_log["average_number"] == series]
+        # reset index of c_table and c_table_log
+        c_table = c_table.reset_index(drop=True)
+        c_table_log = c_table_log.reset_index(drop=True)
+        # # separate in c_table the column "diffusion_direction_rotated" in three columns "diff_vector_x", "diff_vector_y", "diff_vector_z"
+        # c_table[["diff_vector_x", "diff_vector_y", "diff_vector_z"]] = pd.DataFrame(
+        #     c_table["diffusion_direction_rotated"].tolist(), index=c_table.index
+        # )
+
+        # transform in c_table the column "diffusion_direction_rotated" from a tuple of numpy arrays, into a numpy array
+        c_table["diffusion_direction_rotated"] = c_table[
+            "diffusion_direction_rotated"
+        ].apply(
+            lambda x: np.array(x) if isinstance(x, tuple) else np.array([0.0, 0.0, 0.0])
+        )
+
+        # in c_table_log also create a tuple column with the diffusion directions
+        c_table_log["diffusion_direction"] = [
+            x
+            for x in c_table_log[
+                ["diff_vector_x", "diff_vector_y", "diff_vector_z"]
+            ].to_numpy()
+        ]
+
+        # check the column "nii_file_suffix" in c_table is always the same
+        assert (
+            len(c_table["nii_file_suffix"].unique()) == 1
+        ), "More than one nii file suffix found for series " + str(series)
+
+        c_csv_table = []
+        frame_idx = 0
+        slice_idx = 0
+        # loop over each row in c_table
+        for idx in range(len(c_table)):
+            c_diff_vector = c_table.loc[idx, "diffusion_direction_rotated"]
+
+            # look for the row in c_table_log with the closest diffusion direction
+            c_table_log["diff_vector_distance"] = c_table_log[
+                "diffusion_direction"
+            ].apply(lambda row: np.linalg.norm(c_diff_vector - np.array(row)))
+            c_closest_row = c_table_log.loc[
+                c_table_log["diff_vector_distance"].idxmin()
+            ]
+
+            # assert b_value is the same
+            assert (
+                c_table.loc[idx, "b_value"] == c_closest_row["b_value"]
+            ), f"b_value mismatch for series {series}, row {idx}"
+
+            # get adjusted b_value from c_closest_row
+            adjusted_b_value = (
+                c_closest_row["b_value"]
+                * c_closest_row["mixing_time"]
+                / c_closest_row["assumed_RR"]
+            )
+
+            # add frame_idx, slice_idx and nominal_interval. frame_idx is a
+            # counter of the image, slice_idx will be 0 for all assuming we are only acquiring one slice.
+            nominal_interval = c_table.loc[idx, "nominal_interval"]
+            c_csv_table.append(
+                [
+                    float(adjusted_b_value),
+                    frame_idx,
+                    slice_idx,
+                    nominal_interval,
+                ]
+            )
+
+            frame_idx += 1
+
+        c_nii_file_suffix = c_table["nii_file_suffix"].unique()[0]
+        c_file = glob.glob(os.path.join(output_path, "**" + c_nii_file_suffix + ".nii"))
+        assert len(c_file) == 1, "More than one file found for this series!"
+        c_file = c_file[0]
+        c_file = c_file.replace(".nii", ".csv")
+        c_csv_table = pd.DataFrame(
+            c_csv_table,
+            columns=column_labels,
+        )
+        c_csv_table.to_csv(c_file, index=False)
 
 
 def adjust_philips_b_values(b0_val, df_dicom, df_mt):
@@ -790,7 +1005,11 @@ def separate_philips_log_table(df_dicom, df_log):
 
 
 def philips_export_csv_tables(
-    df_dicom: pd.DataFrame, dicom_path: str, n_images_per_file: int, output_path: str
+    df_dicom: pd.DataFrame,
+    header_info: dict,
+    dicom_path: str,
+    n_images_per_file: int,
+    output_path: str,
 ):
     """
     Export the dataframe to CSV files.
@@ -799,6 +1018,7 @@ def philips_export_csv_tables(
     Parameters
     ----------
     df_dicom
+    header_info
     dicom_path
     n_images_per_file
 
@@ -807,20 +1027,27 @@ def philips_export_csv_tables(
     # read the log file
     df_log = read_philips_steam_log(df_dicom, dicom_path)
 
-    b0_val, df_mt, df_scan_names = separate_philips_log_table(df_dicom, df_log)
+    # create csv tables with the adjusted b-values, the frame index and slice index for each nii file
+    export_csv_files_philips(df_dicom, df_log, output_path)
 
-    # add slice and frame index to each row to match the nii arrays
-    df_dicom = add_slice_and_frame_index(df_dicom, n_images_per_file, manual_config)
+    # b0_val, df_mt, df_scan_names = separate_philips_log_table(df_dicom, df_log)
 
-    # add adjusted b-values to df_dicom
-    df_dicom = adjust_philips_b_values(b0_val, df_dicom, df_mt)
+    # # add slice and frame index to each row to match the nii arrays
+    # df_dicom = add_slice_and_frame_index(df_dicom, n_images_per_file, manual_config)
 
-    # export df_dicom to csv tables
-    export_csv_files(df_dicom, output_path)
+    # # add adjusted b-values to df_dicom
+    # df_dicom = adjust_philips_b_values(b0_val, df_dicom, df_mt)
+
+    # # export df_dicom to csv tables
+    # export_csv_files(df_dicom, output_path)
 
 
 def dicom_info_table(
-    dicom_files: list, dicom_manufacturer: str, dicom_type: int, n_images_per_file: int
+    dicom_files: list,
+    dicom_manufacturer: str,
+    dicom_type: int,
+    n_images_per_file: int,
+    rotation_matrix: np.ndarray,
 ) -> pd.DataFrame:
     """
     Create a table with DICOM information
@@ -831,6 +1058,7 @@ def dicom_info_table(
     dicom_manufacturer
     dicom_type
     n_images_per_file
+    rotation_matrix
 
     Returns
     df_dicom
@@ -846,7 +1074,7 @@ def dicom_info_table(
         # read current DICOM
         ds = pydicom.dcmread(open(file_name, "rb"))
         # convert header into a dict
-        c_dicom_header = dictify(ds)
+        c_dicom_header = dictify(ds, dicom_manufacturer, dicom_type)
 
         # loop over each image in the current DICOM file
         for frame_idx in range(n_images_per_file):
@@ -874,14 +1102,24 @@ def dicom_info_table(
                     get_b_value(
                         c_dicom_header, dicom_type, dicom_manufacturer, frame_idx
                     ),
-                    # b-value or zero if not a field
+                    # diffusion direction
                     get_diff_dir(
                         c_dicom_header, dicom_type, dicom_manufacturer, frame_idx
+                    ),
+                    # get diffusion_direction rotated
+                    get_diff_dir_philips_log(
+                        get_diff_dir(
+                            c_dicom_header, dicom_type, dicom_manufacturer, frame_idx
+                        ),
+                        rotation_matrix,
+                        dicom_manufacturer,
                     ),
                     # image position
                     get_image_position(c_dicom_header, dicom_type, frame_idx),
                     # get image type
                     get_image_type(c_dicom_header, dicom_type, frame_idx),
+                    # get series description
+                    get_series_description(c_dicom_header, dicom_type, frame_idx),
                 )
             )
     # column labels for the dataframe and for the csv file
@@ -896,8 +1134,10 @@ def dicom_info_table(
         "nii_file_suffix",
         "b_value",
         "diffusion_direction",
+        "diffusion_direction_rotated",
         "image_position",
         "image_type",
+        "series_description",
     ]
     # create a dataframe from the list
     df_dicom = pd.DataFrame(
@@ -959,61 +1199,89 @@ def read_philips_steam_log(df_dicom: pd.DataFrame, dicom_path: str) -> pd.DataFr
     df_log
 
     """
-    # open log to text list
-    # this file is assumed to be in the same folder as the input DICOMs
-    with open(
-        os.path.join(dicom_path, "devlogcurrent.log"), encoding="ISO-8859-1"
-    ) as f:
-        txt = f.readlines()
 
-    # remove new lines and separate text by tab
-    txt = [t.strip() for t in txt]
-    txt = [t.split("\t") for t in txt]
+    # look for a file in the dicom_path that starts with devlogcurrent and ends with .csv
+    log_files = glob.glob(os.path.join(dicom_path, "devlogcurrent*.csv"))
+    assert len(log_files) == 1, "More than one log file found in the dicom folder!"
+    log_file = log_files[0]
+    df_log = pd.read_csv(log_file, encoding="ISO-8859-1", header=None)
 
-    # convert list to pandas dataframe
-    df_log = pd.DataFrame(txt)
+    # get the number of columns in the log file
+    n_cols = df_log.shape[1]
 
-    # remove some irrelevant columns
-    df_log = df_log.drop(columns=[0, 3, 4, 6, 7, 8, 10, 11, 12, 13])
+    # assert the number is always 20, otherwise we need to adjust the code below
+    assert (
+        n_cols == 20
+    ), "Number of columns in the log file is not 20! I am counting it is always 20, otherwise we need column names!"
 
-    # get table with only relevant diffusion information
-    searchfor = [
-        "CS-SCMR-SIG mixing time:",
-        "CS-STE-DIFF: value b0:",
-        "00 00 00: scan_name",
-        "00 00 00: start_scan_date_time",
-    ]
-    df_log = df_log[df_log[9].str.contains("|".join(searchfor)) == True]
+    # give names to all 20 columns
+    column_names = df_log.columns.tolist()
+    column_names[5] = "average_number"
+    column_names[8] = "diff_vector"
+    column_names[10] = "mixing_time"
+    column_names[13] = "assumed_RR"
+    column_names[15] = "b_value"
+    column_names[17] = "diff_vector_x"
+    column_names[18] = "diff_vector_y"
+    column_names[19] = "diff_vector_z"
 
-    # # ===========================================================
-    # # TODO this needs to be removed once fixed by C Stoeck
-    # print("===========================================================")
-    # print("Hard coded values for the log file!")
-    # print("Remove once fixed!")
-    # print("===========================================================")
-    # df_dicom["series_date"] = "20240606"
-    # # ===========================================================
+    df_log.columns = column_names
 
-    # the DICOMS should have a fixed date and time, so we can filter the log file
-    assert is_unique(
-        df_dicom["series_date"]
-    ), "series_date values are not unique in table!"
-    SeriesDate = df_dicom["series_date"].values[0]
-    assert is_unique(
-        df_dicom["series_time"]
-    ), "series_time values are not unique in table!"
-    SeriesTime = df_dicom["series_time"].values[0]
+    # # open log to text list
+    # # this file is assumed to be in the same folder as the input DICOMs
+    # with open(
+    #     os.path.join(dicom_path, "devlogcurrent.log"), encoding="ISO-8859-1"
+    # ) as f:
+    #     txt = f.readlines()
 
-    # combine time and date
-    datetime_str = SeriesDate + " " + SeriesTime
-    datetime_object = datetime.strptime(datetime_str, "%Y%m%d %H%M%S.%f")
-    # remove anything before the series date and time
-    df_log["acquisition_date_time"] = df_log[1] + " " + df_log[2]
-    df_log["acquisition_date_time"] = pd.to_datetime(
-        df_log["acquisition_date_time"], format="%Y-%m-%d %H:%M:%S.%f"
-    )
-    df_log = df_log.drop(columns=[1, 2])
-    df_log = df_log[df_log["acquisition_date_time"] > datetime_object]
+    # # remove new lines and separate text by tab
+    # txt = [t.strip() for t in txt]
+    # txt = [t.split("\t") for t in txt]
+
+    # # convert list to pandas dataframe
+    # df_log = pd.DataFrame(txt)
+
+    # # remove some irrelevant columns
+    # df_log = df_log.drop(columns=[0, 3, 4, 6, 7, 8, 10, 11, 12, 13])
+
+    # # get table with only relevant diffusion information
+    # searchfor = [
+    #     "CS-SCMR-SIG mixing time:",
+    #     "CS-STE-DIFF: value b0:",
+    #     "00 00 00: scan_name",
+    #     "00 00 00: start_scan_date_time",
+    # ]
+    # df_log = df_log[df_log[9].str.contains("|".join(searchfor)) == True]
+
+    # # # ===========================================================
+    # # # TODO this needs to be removed once fixed by C Stoeck
+    # # print("===========================================================")
+    # # print("Hard coded values for the log file!")
+    # # print("Remove once fixed!")
+    # # print("===========================================================")
+    # # df_dicom["series_date"] = "20240606"
+    # # # ===========================================================
+
+    # # the DICOMS should have a fixed date and time, so we can filter the log file
+    # assert is_unique(
+    #     df_dicom["series_date"]
+    # ), "series_date values are not unique in table!"
+    # SeriesDate = df_dicom["series_date"].values[0]
+    # assert is_unique(
+    #     df_dicom["series_time"]
+    # ), "series_time values are not unique in table!"
+    # SeriesTime = df_dicom["series_time"].values[0]
+
+    # # combine time and date
+    # datetime_str = SeriesDate + " " + SeriesTime
+    # datetime_object = datetime.strptime(datetime_str, "%Y%m%d %H%M%S.%f")
+    # # remove anything before the series date and time
+    # df_log["acquisition_date_time"] = df_log[1] + " " + df_log[2]
+    # df_log["acquisition_date_time"] = pd.to_datetime(
+    #     df_log["acquisition_date_time"], format="%Y-%m-%d %H:%M:%S.%f"
+    # )
+    # df_log = df_log.drop(columns=[1, 2])
+    # df_log = df_log[df_log["acquisition_date_time"] > datetime_object]
 
     return df_log
 
@@ -1186,15 +1454,8 @@ def get_data_from_dicoms_and_export(
             )
         elif dicom_manufacturer == "philips":
 
-            # at the moment we cannot use this script for Philips STEAM data as we will not have
-            # access to the log file, we are currently investigating this issue
-            # throw error if so
-            assert (
-                sequence_option != "steam"
-            ), "Philips STEAM data not supported at the moment. Fix coming soon..."
-
             philips_export_csv_tables(
-                df_dicom, dicom_path, n_images_per_file, output_path
+                df_dicom, header_info, dicom_path, n_images_per_file, output_path
             )
 
         print("=============================================")
@@ -1267,14 +1528,23 @@ def dicom_database(dicom_path):
     header_info = pydicom.dcmread(open(dicom_files[0], "rb"))
 
     # check version, number of images per DICOM and manufacturer
-    dicom_type, n_images_per_file, dicom_manufacturer = check_dicom_version(header_info)
+    dicom_type, n_images_per_file, dicom_manufacturer = (
+        check_dicom_version_and_manufacturer(header_info)
+    )
+
+    # get image orientation and rotation matrix
+    iop = header_info["ImageOrientationPatient"].value
+    first_column = np.array(iop[0:3])
+    second_column = np.array(iop[3:6])
+    third_column = np.cross(first_column, second_column)
+    rotation_matrix = np.stack((first_column, second_column, third_column), axis=-1)
 
     # dictify dicom header
-    header_info = dictify(header_info)
+    header_info = dictify(header_info, dicom_manufacturer, dicom_type)
 
     # dataframe with DICOM info
     df_dicom = dicom_info_table(
-        dicom_files, dicom_manufacturer, dicom_type, n_images_per_file
+        dicom_files, dicom_manufacturer, dicom_type, n_images_per_file, rotation_matrix
     )
 
     return header_info, n_images_per_file, dicom_manufacturer, df_dicom
