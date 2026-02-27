@@ -1533,7 +1533,14 @@ def dicom_database(dicom_path):
     )
 
     # get image orientation and rotation matrix
-    iop = header_info["ImageOrientationPatient"].value
+    if dicom_type == 2:
+        iop = header_info["PerFrameFunctionalGroupsSequence"][0][
+            "PlaneOrientationSequence"
+        ][0]["ImageOrientationPatient"].value
+
+    elif dicom_type == 1:
+        iop = header_info["ImageOrientationPatient"].value
+
     first_column = np.array(iop[0:3])
     second_column = np.array(iop[3:6])
     third_column = np.cross(first_column, second_column)
