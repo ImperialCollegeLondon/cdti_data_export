@@ -194,7 +194,10 @@ def get_series_description(
     Series description string
 
     """
-    return c_dicom_header["SeriesDescription"]
+    if "SeriesDescription" in c_dicom_header:
+        return c_dicom_header["SeriesDescription"]
+    else:
+        return "None"
 
 
 def get_nii_file_suffix(c_dicom_header: dict, dicom_type: int, frame_idx: int) -> str:
