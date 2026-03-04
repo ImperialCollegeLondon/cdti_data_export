@@ -25,6 +25,99 @@ def is_unique(s):
     return (a[0] == a).all()
 
 
+def detect_outliers_iqr(data, threshold=1.5):
+    """
+    Detect outliers using the IQR method.
+
+    Parameters:
+    - data: 1D array of numbers
+    - threshold: multiplier for IQR (1.5 is standard, 3.0 is more conservative)
+
+    Returns:
+    - mask: boolean array where True indicates an outlier
+    - outliers: array of outlier values
+    """
+    q1 = np.nanpercentile(data, 25)
+    q3 = np.nanpercentile(data, 75)
+    iqr = q3 - q1
+
+    lower_bound = q1 - threshold * iqr
+    upper_bound = q3 + threshold * iqr
+
+    outlier_mask = (data < lower_bound) | (data > upper_bound)
+
+    return outlier_mask, data[outlier_mask]
+
+
+def detect_outliers_mad(data, threshold=3.5):
+    """
+    Detect outliers using Modified Z-Score (MAD method).
+    More robust than standard Z-score.
+
+    Parameters:
+    - data: 1D array of numbers
+    - threshold: modified z-score threshold (3.5 is recommended)
+
+    Returns:
+    - mask: boolean array where True indicates an outlier
+    - outliers: array of outlier values
+    """
+    median = np.nanmedian(data)
+    mad = np.nanmedian(np.abs(data - median))
+
+    # Modified z-score
+    modified_z_scores = (
+        0.6745 * (data - median) / mad if mad != 0 else np.zeros_like(data)
+    )
+
+    outlier_mask = np.abs(modified_z_scores) > threshold
+
+    return outlier_mask, data[outlier_mask]
+
+
+def detect_outliers_percentage(data, threshold_percent=50):
+    """
+    Detect outliers based on percentage difference from median.
+    Works when most data is identical.
+
+    Parameters:
+    - data: 1D array of numbers
+    - threshold_percent: percentage difference threshold (e.g., 50 = 50%)
+
+    Returns:
+    - mask: boolean array where True indicates an outlier
+    - outliers: array of outlier values
+    """
+    median = np.nanmedian(data)
+
+    if median == 0:
+        # Avoid division by zero - use absolute difference instead
+        outlier_mask = np.abs(data - median) > threshold_percent
+    else:
+        # Calculate percentage difference
+        percent_diff = np.abs((data - median) / median) * 100
+        outlier_mask = percent_diff > threshold_percent
+
+    return outlier_mask, data[outlier_mask]
+
+
+def check_mostly_identical_mad(data):
+    """
+    Check if MAD (Median Absolute Deviation) is zero.
+
+    Returns:
+    - is_mostly_identical: boolean
+    - mad: median absolute deviation
+    - median: the median value
+    """
+    median = np.nanmedian(data)
+    mad = np.nanmedian(np.abs(data - median))
+
+    is_mostly_identical = mad == 0
+
+    return is_mostly_identical, mad, median
+
+
 def get_nominal_interval(
     c_dicom_header: dict, dicom_type: int, frame_idx: int
 ) -> float:
@@ -274,12 +367,15 @@ def get_b_value(
 
     elif dicom_type == 1:
         if dicom_manufacturer == "siemens":
-            if "DiffusionBValue" in c_dicom_header.keys():
-                return c_dicom_header["DiffusionBValue"]
+            if "b_value" in c_dicom_header.keys():
+                return c_dicom_header["b_value"]
             else:
                 return 0.0
         elif dicom_manufacturer == "philips":
-            return c_dicom_header["DiffusionBValue"]
+            if "b_value" in c_dicom_header.keys():
+                return c_dicom_header["b_value"]
+            else:
+                return 0.0
 
 
 def get_diff_dir(
@@ -326,17 +422,13 @@ def get_diff_dir(
 
     elif dicom_type == 1:
         if dicom_manufacturer == "siemens":
-            if "DiffusionGradientDirection" in c_dicom_header.keys():
-                return tuple(
-                    [float(i) for i in c_dicom_header["DiffusionGradientDirection"]]
-                )
+            if "diffusion_direction" in c_dicom_header.keys():
+                return tuple([float(i) for i in c_dicom_header["diffusion_direction"]])
             else:
                 return (0.0, 0.0, 0.0)
         elif dicom_manufacturer == "philips":
-            if "DiffusionGradientOrientation" in c_dicom_header.keys():
-                return tuple(
-                    [float(i) for i in c_dicom_header["DiffusionGradientOrientation"]]
-                )
+            if "diffusion_direction" in c_dicom_header.keys():
+                return tuple([float(i) for i in c_dicom_header["diffusion_direction"]])
             else:
                 return (0.0, 0.0, 0.0)
 
@@ -461,7 +553,7 @@ def dictify(ds: pydicom.dataset.Dataset, manufacturer: str, dicom_type: str) -> 
             ]
 
     # add manually private diffusion fields if they exist for legacy DICOMs
-    if dicom_type == "legacy":
+    if dicom_type == 1:
         if manufacturer == "siemens":
             if [0x0019, 0x100C] in ds:
                 output["b_value"] = ds[0x0019, 0x100C].value
@@ -621,9 +713,18 @@ def estimate_rr_interval(data: pd.DataFrame) -> [pd.DataFrame]:
 
         # prepend nan to the time delta
         time_delta = np.insert(time_delta, 0, np.nan)
-        # get median time delta, and replace values above 4x the median with nan
-        median_time = np.nanmedian(time_delta)
-        time_delta[time_delta > 4 * median_time] = np.nan
+
+        # remove outliers, first detect if this is in-vivo or phantom
+        is_mostly_identical, mad, median = check_mostly_identical_mad(time_delta)
+
+        if is_mostly_identical:
+            mask, outliers = detect_outliers_percentage(time_delta)
+        else:
+            mask, outliers = detect_outliers_mad(time_delta)
+
+        # change to nan outliers in the time delta
+        time_delta[mask] = np.nan
+
         # add time delta to the dataframe
         data["estimated_rr_interval"] = time_delta
         # replace nans with the next non-nan value
