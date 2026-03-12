@@ -999,9 +999,23 @@ def export_csv_files_philips(df: pd.DataFrame, df_log: pd.DataFrame, output_path
             c_table_log["diff_vector_distance"] = c_table_log[
                 "diffusion_direction"
             ].apply(lambda row: np.linalg.norm(c_diff_vector - np.array(row)))
+            # also calculate the distance to the symmetric vector (which is sometimes the one that is actually in the other table)
+            c_table_log["diff_vector_distance_symmetric"] = c_table_log[
+                "diffusion_direction"
+            ].apply(lambda row: np.linalg.norm(c_diff_vector + np.array(row)))
             c_closest_row = c_table_log.loc[
                 c_table_log["diff_vector_distance"].idxmin()
             ]
+            c_closest_row_sym = c_table_log.loc[
+                c_table_log["diff_vector_distance_symmetric"].idxmin()
+            ]
+            # which one is closer, the original or the symmetric?
+            if c_closest_row["diff_vector_distance"] <= c_closest_row_sym[
+                "diff_vector_distance_symmetric"
+            ]:
+                c_closest_row = c_closest_row
+            else:
+                c_closest_row = c_closest_row_sym
 
             # assert b_value is the same
             assert (
