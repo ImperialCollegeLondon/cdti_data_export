@@ -96,7 +96,7 @@ You will need these arguments to run the script:
 - `<input_folder>`: Folder containing the DICOM files (all files should be at the root, not in subfolders).
 - `<output_folder>`: Folder where the NIFTI files will be created.
 - `sequence`: Either `se` or `steam`, depending on the sequence.
-- `anonymisation`: `yes` or `no` (generally, use `yes`).
+- `anonymisation`: `yes`, `no`, or `keep_name` (generally, use `yes`). If patient ID is important to keep, use `keep_name` (but be aware that this will keep the `PatientName` in the output files, so only use if necessary.)
 
 > [!WARNING]
 > Ensure you have activated the Python virtual environment in the repository folder:
@@ -207,7 +207,7 @@ The DICOM files should be inside level 5 of the hierarchy, as shown above. Not i
 You will need the following arguments to run the script:
 
 - `<root_folder>`: full path for the root folder that contains the `group_name` subfolder.
-- `anonymisation`: `yes` or `no` (generally, use `yes`).
+- `anonymisation`: `yes`, `no`, or `keep_name` (generally, use `yes`). If patient ID is important to keep, use `keep_name` (but be aware that this will keep the `PatientName` in the output files, so only use if necessary.)
 - `overwrite`: `yes` or `no` (if you want to overwrite potentially existing NIFTI files, use `yes`).
 
 Run the script example:

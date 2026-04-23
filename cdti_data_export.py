@@ -1010,9 +1010,10 @@ def export_csv_files_philips(df: pd.DataFrame, df_log: pd.DataFrame, output_path
                 c_table_log["diff_vector_distance_symmetric"].idxmin()
             ]
             # which one is closer, the original or the symmetric?
-            if c_closest_row["diff_vector_distance"] <= c_closest_row_sym[
-                "diff_vector_distance_symmetric"
-            ]:
+            if (
+                c_closest_row["diff_vector_distance"]
+                <= c_closest_row_sym["diff_vector_distance_symmetric"]
+            ):
                 c_closest_row = c_closest_row
             else:
                 c_closest_row = c_closest_row_sym
@@ -1420,7 +1421,7 @@ def get_data_from_dicoms_and_export(
     dicom_path: str path to dicom files
     output_path: str path to output folder for nifti files
     sequence_option: "se" or "steam"
-    anonymise_option: "yes" or "no"
+    anonymise_option: "yes", "no", or "keep_name"
     manual_config: dict with manual configuration of some parameters
 
     """
@@ -1506,12 +1507,8 @@ def get_data_from_dicoms_and_export(
     assert len(nii_files) > 0, "No NIfTI files found in the folder!"
 
     # create bool option for anonymisation
-    if anonymise_option == "yes":
-        anonymise_option = True
-    else:
-        anonymise_option = False
+    if anonymise_option == "yes" or anonymise_option == "keep_name":
 
-    if anonymise_option:
         # remove the acquisition date and time info from the json files
         json_files = glob.glob(os.path.join(output_path, "*.json"))
         for json_file in json_files:
@@ -1531,6 +1528,10 @@ def get_data_from_dicoms_and_export(
             for key in list(json_data.keys()):
                 if key not in keys_to_keep:
                     json_data.pop(key)
+
+            # add PatientName if anonymise_option is "keep_name"
+            if anonymise_option == "keep_name":
+                json_data["PatientName"] = header_info["PatientName"].alphabetic
 
             # dict to json file
             json_string = json.dumps(json_data, indent=4)
@@ -1581,7 +1582,7 @@ def get_data_from_dicoms_and_export(
         print("=============================================")
         anon_pipeline["csv_files_created"] = "yes"
 
-    if anonymise_option:
+    if anonymise_option == "yes" or anonymise_option == "keep_name":
         # rename all files to avoid potential identifiers
         def custom_file_rename(list_of_files, output_path):
             list_of_files.sort()
@@ -1694,7 +1695,11 @@ if __name__ == "__main__":
     assert os.path.exists(dicom_path), "DICOM path does not exist!"
     # assert not os.path.exists(output_path), "Output path already exists!"
     assert sequence_option in ["se", "steam"], "Sequence option not recognised!"
-    assert anonymise_option in ["yes", "no"], "Anonymise option not recognised!"
+    assert anonymise_option in [
+        "yes",
+        "no",
+        "keep_name",
+    ], "Anonymise option not recognised!"
     # check output argument folder doesn't exist or is empty
     if os.path.exists(output_path):
         assert len(os.listdir(output_path)) == 0, "Output folder is not empty!"
